@@ -11,6 +11,18 @@ Remove-Item "$env:LOCALAPPDATA\Google\Chrome\User Data\Profile 1\Last Session" -
 Remove-Item "$env:LOCALAPPDATA\Google\Chrome\User Data\Profile 1\Last Tabs" -Force -EA SilentlyContinue
 Remove-Item "$env:LOCALAPPDATA\Google\Chrome\User Data\Profile 1\Sessions\*" -Force -EA SilentlyContinue
 
+# Corregir exit_type=Crashed en Preferences — Chrome restaura tabs aunque no haya session files
+$prefsPath = "$env:LOCALAPPDATA\Google\Chrome\User Data\Profile 1\Preferences"
+if (Test-Path $prefsPath) {
+    $prefs = Get-Content $prefsPath -Raw | ConvertFrom-Json
+    $prefs.profile | Add-Member -Force -MemberType NoteProperty -Name "exit_type"     -Value "Normal"
+    $prefs.profile | Add-Member -Force -MemberType NoteProperty -Name "exited_cleanly" -Value $true
+    if (-not $prefs.session) { $prefs | Add-Member -Force -MemberType NoteProperty -Name "session" -Value ([PSCustomObject]@{}) }
+    $prefs.session | Add-Member -Force -MemberType NoteProperty -Name "restore_on_startup" -Value 1
+    $prefs | ConvertTo-Json -Depth 100 -Compress | Set-Content $prefsPath -Encoding UTF8
+    Write-Host "Preferences: exit_type=Normal, restore_on_startup=1"
+}
+
 Start-Process "C:\Program Files\Google\Chrome\Application\chrome.exe" -ArgumentList @(
     "--remote-debugging-port=9223",
     "--remote-allow-origins=*",
