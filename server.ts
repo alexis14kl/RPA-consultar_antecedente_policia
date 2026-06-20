@@ -1,4 +1,4 @@
-import { chromium, Page, Browser, BrowserContext } from "playwright";
+import { chromium, Page, Browser, BrowserContext, Frame } from "playwright";
 import { execSync } from "child_process";
 import { writeFileSync } from "fs";
 import * as http from "http";
@@ -120,6 +120,15 @@ async function initBrowser(): Promise<void> {
   console.log("Browser inicializado.");
 }
 
+// Obtiene el Frame del challenge (bframe) de reCAPTCHA. El bframe corre OOPIF,
+// por lo que page.frames() no lo lista de forma fiable; se accede vía el
+// elemento <iframe src*="bframe"> + contentFrame().
+async function getBframe(page: Page): Promise<Frame | null> {
+  const h = await page.locator('iframe[src*="bframe"]').elementHandle().catch(() => null);
+  if (!h) return null;
+  return await h.contentFrame().catch(() => null);
+}
+
 // ── Resolver reCAPTCHA ─────────────────────────────────────────────────────
 async function resolverCaptcha(page: Page): Promise<boolean> {
   // Click checkbox
@@ -133,7 +142,7 @@ async function resolverCaptcha(page: Page): Promise<boolean> {
   for (let i = 0; i < 16 && !passed; i++) {
     await esperar(500);
     if (await rcResuelto(page)) { console.log("[CAPTCHA] Pasó sin challenge."); passed = true; break; }
-    const bframeTemp = page.frames().find(f => f.url().includes("bframe"));
+    const bframeTemp = await getBframe(page);
     if (bframeTemp) {
       const hasChallenge = await bframeTemp.locator(
         "#rc-imageselect, #rc-audiochallenge, #recaptcha-audio-button, #solver-button"
@@ -142,32 +151,34 @@ async function resolverCaptcha(page: Page): Promise<boolean> {
     }
   }
 
-  // Intentar Buster
-  let bframe = page.frames().find(f => f.url().includes("bframe"));
-  if (!passed && bframe) {
-    console.log("[CAPTCHA] Buscando Buster...");
-    for (let i = 0; i < 5 && !passed; i++) {
-      bframe = page.frames().find(f => f.url().includes("bframe"));
-      if (bframe) {
-        const visible = await bframe.locator("#solver-button").isVisible().catch(() => false);
-        if (visible) {
-          console.log(`[CAPTCHA] Buster encontrado (${i + 1}s). Clickeando...`);
-          await bframe.locator("#solver-button").click();
-          for (let j = 0; j < 60 && !passed; j++) {
-            await esperar(1000);
-            if (await rcResuelto(page)) { console.log("[CAPTCHA] Buster resolvió."); passed = true; }
-            if (j % 10 === 9) console.log(`[CAPTCHA] Buster trabajando... (${j + 1}s)`);
-          }
-          break;
+  // Intentar Buster — su ícono es un overlay de extensión sobre .help-button-holder
+  // dentro del bframe (NO es #solver-button, ni vive en el DOM del bframe). El bframe
+  // corre OOPIF, así que se accede con getBframe() (contentFrame); se clic con
+  // force:true porque el holder no pasa el chequeo de "actionability" de Playwright
+  // y Playwright dispara el click en el centro del elemento (sin coordenadas fijas).
+  let bframe: Frame | null = null;
+  if (!passed) {
+    bframe = await getBframe(page);
+    if (bframe) {
+      const holder = bframe.locator(".help-button-holder");
+      const hasHolder = (await holder.count().catch(() => 0)) > 0;
+      if (hasHolder) {
+        console.log("[CAPTCHA] Clic en ícono Buster (.help-button-holder)...");
+        await holder.click({ force: true, timeout: 8000 }).catch((e) => console.log("[CAPTCHA] click Buster:", (e as Error).message));
+        for (let j = 0; j < 25 && !passed; j++) {
+          await esperar(1000);
+          if (await rcResuelto(page)) { console.log("[CAPTCHA] Buster resolvió."); passed = true; }
+          if (j % 10 === 9) console.log(`[CAPTCHA] Buster trabajando... (${j + 1}s)`);
         }
+      } else {
+        console.log("[CAPTCHA] .help-button-holder no presente — Buster no disponible.");
       }
-      await esperar(1000);
     }
   }
 
   // Intentar audio challenge
   if (!passed) {
-    bframe = page.frames().find(f => f.url().includes("bframe"));
+    bframe = await getBframe(page);
     if (bframe) {
       const audioBtn = bframe.locator("#recaptcha-audio-button");
       const hasAudioBtn = await audioBtn.isVisible().catch(() => false);
@@ -179,7 +190,7 @@ async function resolverCaptcha(page: Page): Promise<boolean> {
           console.log("[CAPTCHA] Cambiando a audio challenge...");
           await audioBtn.click();
           await esperar(2000);
-          bframe = page.frames().find(f => f.url().includes("bframe"));
+          bframe = await getBframe(page);
         }
       }
 
@@ -195,7 +206,7 @@ async function resolverCaptcha(page: Page): Promise<boolean> {
         }
       });
 
-      bframe = page.frames().find(f => f.url().includes("bframe"));
+      bframe = await getBframe(page);
       if (bframe) {
         const downloadHref = await bframe.locator(".rc-audiochallenge-tdownload-link, a[href*='payload']").getAttribute("href").catch(() => null);
 
