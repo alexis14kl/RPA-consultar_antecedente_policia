@@ -332,17 +332,33 @@ async function run(): Promise<void> {
   await page.locator("#j_idt17").click();
   console.log("Consultando...");
 
+  await page.waitForLoadState("networkidle", { timeout: 20000 }).catch(() => {});
+  const result = await page.locator("body").innerText();
+  console.log(`\nURL: ${page.url()}`);
+  console.log("\n=== RESULTADO 1 ===");
+  console.log(result.trim());
+
   await consultar2(page);
 
   await esperar(5000);
   await retroceder(page);
 
-  await page.waitForLoadState("networkidle", { timeout: 20000 }).catch(() => {});
-  const result = await page.locator("body").innerText();
-  console.log(`\nURL: ${page.url()}`);
-  console.log("\n=== RESULTADO ===");
-  console.log(result.trim());
+  // Segunda consulta — reutilizar sesión reCAPTCHA (token válido ~2min)
+  await page.locator("#cedulaInput").waitFor({ state: "visible", timeout: 10000 });
+  await page.locator("#cedulaInput").fill("10076002");
+  console.log("Segunda consulta: CC 10076002");
 
+  if (await rcResuelto()) {
+    console.log("Sesión reCAPTCHA activa — consultando directamente...");
+    await page.locator("#j_idt17").click();
+    await page.waitForLoadState("networkidle", { timeout: 20000 }).catch(() => {});
+    const result2 = await page.locator("body").innerText();
+    console.log(`\nURL: ${page.url()}`);
+    console.log("\n=== RESULTADO 2 ===");
+    console.log(result2.trim());
+  } else {
+    console.log("reCAPTCHA expiró — sesión no reutilizable para segunda consulta.");
+  }
 
   await browser.close();
 }
