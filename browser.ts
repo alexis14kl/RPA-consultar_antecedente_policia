@@ -129,35 +129,30 @@ async function run(): Promise<void> {
     return false;
   }
 
-  // Poll hasta 8s — sale apenas pase O aparezca challenge
+  // Poll hasta 8s — sale apenas pase O aparezca challenge (imagen o audio)
   let passed = false;
   for (let i = 0; i < 16 && !passed; i++) {
     await esperar(500);
+    // Opción 1: check resuelto sin challenge → ir directo a consultar
     if (await rcResuelto()) {
       console.log("reCAPTCHA pasó sin challenge — consultando directamente...");
       passed = true;
       break;
     }
-    // Si el challenge ya está abierto (bframe con botones visibles), salir del poll
+    // Opción 2: challenge abierto (imagen o audio) → salir del poll para manejarlo
     const bframeTemp = page.frames().find(f => f.url().includes("bframe"));
     if (bframeTemp) {
-      const hasChallenge = await bframeTemp.locator("#recaptcha-audio-button, #solver-button").isVisible().catch(() => false);
+      const hasChallenge = await bframeTemp.locator(
+        "#rc-imageselect, #rc-audiochallenge, #recaptcha-audio-button, #solver-button"
+      ).isVisible().catch(() => false);
       if (hasChallenge) { console.log("Challenge detectado — saliendo del poll."); break; }
     }
     if (i % 4 === 3) console.log(`  Poll ${i + 1}/16...`);
   }
 
-  // PASO 1: Cambiar a audio challenge + intentar Buster inmediato
+  // Manejar challenge
   let bframe = page.frames().find(f => f.url().includes("bframe"));
   if (!passed && bframe) {
-    // Cambiar a audio mode si aún está en imagen
-    const hasAudioBtn = await bframe.locator("#recaptcha-audio-button").isVisible().catch(() => false);
-    if (hasAudioBtn) {
-      console.log("Cambiando a audio challenge...");
-      await bframe.locator("#recaptcha-audio-button").click();
-      await esperar(2000);
-    }
-
     // Verificar Buster inmediato (max 5s)
     console.log("Buscando Buster (#solver-button)...");
     let busterFound = false;
@@ -169,7 +164,6 @@ async function run(): Promise<void> {
           console.log(`Buster encontrado (${i + 1}s). Clickeando...`);
           await bframe.locator("#solver-button").click();
           busterFound = true;
-          // Esperar resolución (hasta 60s)
           for (let j = 0; j < 60; j++) {
             await esperar(1000);
             if (await rcResuelto()) { console.log("Buster resolvió."); passed = true; break; }
@@ -180,22 +174,43 @@ async function run(): Promise<void> {
       }
       await esperar(1000);
     }
-    if (!busterFound && !passed) console.log("Buster no disponible — fallback audio.");
+    if (!busterFound) console.log("Buster no disponible.");
+
+    // Si Buster no resolvió: intentar botón en image challenge (div[6] dentro de rc-imageselect)
+    if (!passed) {
+      bframe = page.frames().find(f => f.url().includes("bframe"));
+      if (bframe) {
+        const btnImgChallenge = bframe.locator(
+          'xpath=//*[@id="rc-imageselect"]/div[3]/div[2]/div[1]/div[1]/div[6]'
+        );
+        const hasImgBtn = await btnImgChallenge.isVisible().catch(() => false);
+        console.log(`Botón rc-imageselect div[6] visible: ${hasImgBtn}`);
+        if (hasImgBtn) {
+          console.log("Clickeando botón image challenge div[6]...");
+          await btnImgChallenge.click().catch(() => {});
+          await esperar(2500);
+          // Re-obtener bframe tras cambio de modo
+          bframe = page.frames().find(f => f.url().includes("bframe"));
+        } else {
+          // Fallback: botón audio directo
+          const hasAudioBtn = await bframe.locator("#recaptcha-audio-button").isVisible().catch(() => false);
+          console.log(`Fallback audio button visible: ${hasAudioBtn}`);
+          if (hasAudioBtn) {
+            console.log("Cambiando a audio challenge (fallback)...");
+            await bframe.locator("#recaptcha-audio-button").click();
+            await esperar(2000);
+            bframe = page.frames().find(f => f.url().includes("bframe"));
+          }
+        }
+      }
+    }
   }
 
-  // INTENTO 3: Capturar audio via CDP si Buster no funcionó
+  // Capturar audio via CDP
   if (!passed) {
-    console.log("Buster no inyectó. Intentando captura audio CDP...");
+    console.log("Intentando captura audio CDP...");
     bframe = page.frames().find(f => f.url().includes("bframe"));
     if (bframe) {
-      // Click botón descarga directa (div[6]) para desencadenar audio sin reproducir
-      const btnDescarga = bframe.locator("xpath=/html/body/div/div/div[8]/div[2]/div[1]/div[1]/div[6]//button");
-      const hasDescarga = await btnDescarga.isVisible().catch(() => false);
-      console.log(`Botón descarga directa visible: ${hasDescarga}`);
-      if (hasDescarga) {
-        await btnDescarga.click().catch(() => {});
-        await esperar(2000);
-      }
 
       // Buscar enlace de descarga
       const downloadHref = await bframe.locator(".rc-audiochallenge-tdownload-link, a[href*='payload']").getAttribute("href").catch(() => null);
