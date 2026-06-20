@@ -47,10 +47,20 @@ async function run(): Promise<void> {
   const pages = context.pages();
   // Buscar tab del sitio; si no existe, usar el primero o crear uno
   let page = pages.find(p => p.url().includes("antecedentes.policia.gov.co")) ?? pages[0] ?? await context.newPage();
-  // Cerrar tabs extra (extensiones o sesion restaurada)
+  // Cerrar tabs extra al conectar (sesion restaurada)
   for (const p of pages) {
     if (p !== page) await p.close().catch(() => {});
   }
+
+  // Cerrar via CDP nativo cualquier tab nuevo que extensiones abran (Buster abre data/ y 0.0.0.1)
+  const browserCdp = await browser.newBrowserCDPSession();
+  await browserCdp.send("Target.setDiscoverTargets", { discover: true });
+  browserCdp.on("Target.targetCreated", async (event: any) => {
+    const t = event.targetInfo;
+    if (t.type === "page" && !t.url.includes("antecedentes.policia.gov.co")) {
+      await browserCdp.send("Target.closeTarget", { targetId: t.targetId }).catch(() => {});
+    }
+  });
 
   // Activar Network via CDP para capturar audio
   const cdp = await context.newCDPSession(page);
