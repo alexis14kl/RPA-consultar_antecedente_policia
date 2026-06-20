@@ -35,6 +35,30 @@ async function cdpActivo(port: number): Promise<boolean> {
   });
 }
 
+// Garantiza que Chrome tenga al menos una pestaña antes de conectar por CDP.
+// Si Chrome quedó sin pestañas (p.ej. tras un browser.close() de browser.ts),
+// connectOverCDP falla con "Browser context management is not supported".
+async function asegurarPagina(port: number): Promise<void> {
+  const targets: any[] = await new Promise((resolve) => {
+    http.get(`http://127.0.0.1:${port}/json`, (res) => {
+      let data = "";
+      res.on("data", (d) => (data += d));
+      res.on("end", () => { try { resolve(JSON.parse(data)); } catch { resolve([]); } });
+    }).on("error", () => resolve([]));
+  });
+  if (targets.some((t) => t.type === "page")) return;
+  console.log("CDP sin pestañas — abriendo una nueva...");
+  await new Promise<void>((resolve) => {
+    const req = http.request(
+      `http://127.0.0.1:${port}/json/new?${URL_SITE}`,
+      { method: "PUT" },
+      (res) => { res.resume(); res.on("end", () => resolve()); }
+    );
+    req.on("error", () => resolve());
+    req.end();
+  });
+}
+
 async function rcResuelto(page: Page): Promise<boolean> {
   const token = await page.evaluate(() => {
     const t = document.getElementById("g-recaptcha-response") as HTMLTextAreaElement;
@@ -63,6 +87,7 @@ async function initBrowser(): Promise<void> {
   if (!(await cdpActivo(CDP_PORT))) {
     throw new Error(`CDP no activo en puerto ${CDP_PORT}. Ejecuta start-server.bat.`);
   }
+  await asegurarPagina(CDP_PORT);
   console.log("CDP activo — conectando browser...");
   browser = await chromium.connectOverCDP(`http://127.0.0.1:${CDP_PORT}`);
   const ctxList = browser.contexts();
@@ -223,7 +248,7 @@ async function resolverCaptcha(page: Page): Promise<boolean> {
           writeFileSync(mp3Path, audioBuffer);
           try {
             const texto = execSync(
-              `${PYTHON} "${path.join(SCRIPT_DIR, "transcribe.py")}" file "${mp3Path}"`,
+              `"${PYTHON}" "${path.join(SCRIPT_DIR, "transcribe.py")}" file "${mp3Path}"`,
               { encoding: "utf-8", timeout: 120000 }
             ).trim();
             console.log("[CAPTCHA] Transcripción:", texto);

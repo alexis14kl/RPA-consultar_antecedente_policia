@@ -10,6 +10,10 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
+# Fallback de transcripción de audio: usar el venv del proyecto y el ffmpeg de Homebrew.
+if [ -x "./.venv/bin/python3" ]; then export PYTHON="$(pwd)/.venv/bin/python3"; fi
+if command -v ffmpeg >/dev/null 2>&1; then export FFMPEG_DIR="$(cd "$(dirname "$(command -v ffmpeg)")" && pwd)"; fi
+
 echo "[2/2] Ejecutando consulta automatica..."
 echo
 npx ts-node browser.ts

@@ -286,7 +286,7 @@ async function run(): Promise<void> {
         console.log(`Audio guardado: ${mp3Path} (${audioBuffer.length}b)`);
         try {
           const texto = execSync(
-            `${PYTHON} "${path.join(SCRIPT_DIR, "transcribe.py")}" file "${mp3Path}"`,
+            `"${PYTHON}" "${path.join(SCRIPT_DIR, "transcribe.py")}" file "${mp3Path}"`,
             { encoding: "utf-8", timeout: 120000 }
           ).trim();
           console.log("Transcripción:", texto);

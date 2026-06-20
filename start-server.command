@@ -15,6 +15,16 @@ else
   fi
 fi
 
+# Fallback de transcripción de audio (cuando Buster no resuelve el reCAPTCHA):
+# usar el venv del proyecto y el ffmpeg de Homebrew si están disponibles.
+if [ -x "./.venv/bin/python3" ]; then
+  export PYTHON="$(pwd)/.venv/bin/python3"
+  echo "Transcripción de audio: venv → $PYTHON"
+fi
+if command -v ffmpeg >/dev/null 2>&1; then
+  export FFMPEG_DIR="$(cd "$(dirname "$(command -v ffmpeg)")" && pwd)"
+fi
+
 echo "[2/2] Iniciando servidor API REST en puerto 3000..."
 echo
 echo "  POST http://127.0.0.1:3000/consultar"
