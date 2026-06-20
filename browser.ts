@@ -23,8 +23,14 @@ async function cdpActivo(port: number): Promise<boolean> {
 }
 
 
+async function retroceder(page: Page): Promise<void> {
+  await page.goBack({ waitUntil: "domcontentloaded", timeout: 10000 });
+  console.log(`retroceder: volvió a ${page.url()}`);
+}
+
 async function consultar2(page: Page): Promise<void> {
-  await page.locator("#j_idt17").waitFor({ state: "visible", timeout: 10000 });
+  const visible = await page.locator("#j_idt17").isVisible().catch(() => false);
+  if (!visible) { console.log("consultar2: #j_idt17 no visible en esta página, skip."); return; }
   await page.locator("#j_idt17").click();
   console.log("consultar2: click ejecutado.");
 }
@@ -328,15 +334,15 @@ async function run(): Promise<void> {
 
   await consultar2(page);
 
+  await esperar(5000);
+  await retroceder(page);
+
   await page.waitForLoadState("networkidle", { timeout: 20000 }).catch(() => {});
   const result = await page.locator("body").innerText();
   console.log(`\nURL: ${page.url()}`);
   console.log("\n=== RESULTADO ===");
   console.log(result.trim());
 
-  // Volver atrás (botón ← del navegador) para nueva consulta
-  await page.goBack({ waitUntil: "domcontentloaded", timeout: 10000 }).catch(() => {});
-  console.log(`\nVolvió a: ${page.url()}`);
 
   await browser.close();
 }
