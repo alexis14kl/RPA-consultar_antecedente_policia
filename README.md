@@ -6,16 +6,21 @@ Automatiza la consulta en `antecedentes.policia.gov.co:7005` usando Playwright +
 
 ## Archivos
 
-| Archivo | Rol |
-|---|---|
-| `run.bat` | Entry point — lanza todo en un solo doble-clic |
-| `launch_chrome.ps1` | Abre Chrome con Profile 1 + CDP activo |
-| `browser.ts` | Automatiza la consulta (Playwright via CDP) |
-| `transcribe.py` | Transcribe audio del reCAPTCHA si es necesario |
+| Archivo | SO | Rol |
+|---|---|---|
+| `run.bat` | Windows | Entry point — lanza todo en un solo doble-clic |
+| `launch_chrome.ps1` | Windows | Abre Chrome con Profile 1 + CDP activo |
+| `run.command` | macOS | Entry point — doble-clic, equivalente de `run.bat` |
+| `start-server.command` | macOS | Lanza Chrome (si hace falta) + servidor API REST |
+| `stop_chrome.command` | macOS | Cierra Chrome |
+| `launch_chrome.sh` | macOS | Clona Profile 1 a un dir dedicado y abre Chrome con CDP |
+| `browser.ts` | ambos | Automatiza la consulta (Playwright via CDP) |
+| `server.ts` | ambos | Servidor API REST (`POST /consultar`) sobre el mismo browser |
+| `transcribe.py` | ambos | Transcribe audio del reCAPTCHA (fallback opcional) |
 
 ---
 
-## Uso
+## Uso — Windows
 
 ```
 matar procesos
@@ -26,6 +31,48 @@ Doble-clic en run.bat
 ```
 
 Eso es todo. El bat hace todo automáticamente.
+
+---
+
+## Uso — macOS
+
+Requisitos: Google Chrome instalado, Node.js, y un **"Profile 1"** en Chrome con
+la sesión de Google iniciada + la extensión **Buster** instalada (lo mismo que en
+Windows). `python3` y `ffmpeg` (`brew install ffmpeg`) solo hacen falta para el
+fallback de transcripción de audio — Buster resuelve el captcha sin ellos.
+
+Primera vez (dar permisos de ejecución):
+
+```bash
+cd "ruta/al/proyecto"
+npm install
+chmod +x launch_chrome.sh run.command start-server.command stop_chrome.command
+```
+
+Consulta de una sola pasada (equivalente a `run.bat`):
+
+```bash
+./run.command        # o doble-clic en Finder
+```
+
+Servidor API REST:
+
+```bash
+./start-server.command
+# POST http://127.0.0.1:3000/consultar  { "cedula": "1234567", "tipo": "cc" }
+# GET  http://127.0.0.1:3000/health
+```
+
+### Diferencia clave de macOS: el directorio clonado
+
+Desde **Chrome 136** el navegador **se niega a activar `--remote-debugging-port`
+si `--user-data-dir` apunta al directorio de perfil por defecto** (error:
+*"DevTools remote debugging requires a non-default data directory"*). Por eso en
+Mac `launch_chrome.sh` **no usa el perfil real directamente**: lo clona con
+`rsync` (excluyendo cachés) a `~/Library/Application Support/Google/Chrome-CDP`,
+un directorio no-default donde CDP sí está permitido. El clon arrastra la
+extensión Buster, las cookies y la sesión de Google del Profile 1 real, que
+**nunca se modifica**. El clon se re-sincroniza en cada arranque.
 
 ---
 
@@ -136,3 +183,5 @@ Google bloquea descargas de audio cuando detecta IP sospechosa o muchos intentos
 | Buster no aparece | Perfil equivocado cargado (sin extension) | Verificar `--profile-directory=Profile 1` |
 | Audio 0 bytes | Bloqueo IP de Google | Esperar, cambiar IP, o resolver manualmente |
 | Singleton block | Chrome envia args a instancia existente | Matar TODOS los procesos chrome.exe antes de lanzar |
+| (macOS) CDP no responde | `--user-data-dir` apunta al perfil por defecto (Chrome 136+ lo bloquea) | Usar el dir clonado `Chrome-CDP` (lo hace `launch_chrome.sh`) |
+| (macOS) Buster no aparece | El clon quedó desactualizado | Re-ejecutar `launch_chrome.sh` (re-sincroniza el perfil) |

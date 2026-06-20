@@ -2,9 +2,13 @@ import { chromium, Page, Browser, BrowserContext } from "playwright";
 import { execSync } from "child_process";
 import { writeFileSync } from "fs";
 import * as http from "http";
+import * as path from "path";
 
 const URL_SITE = "https://antecedentes.policia.gov.co:7005/WebJudicial/index.xhtml";
-const SCRIPT_DIR = "C:\\Users\\NyGsoft\\Desktop\\antecedente de policia";
+// Carpeta del proyecto (donde vive este script) — multiplataforma Win/Mac/Linux.
+const SCRIPT_DIR = __dirname;
+// En Windows el binario es "python"; en Mac/Linux es "python3". Override con env PYTHON.
+const PYTHON = process.env.PYTHON ?? (process.platform === "win32" ? "python" : "python3");
 const CDP_PORT = 9223;
 const SERVER_PORT = parseInt(process.env.PORT ?? "3000");
 const CAPTCHA_TIMEOUT_MS = parseInt(process.env.CAPTCHA_TIMEOUT ?? "120") * 1000;
@@ -215,11 +219,11 @@ async function resolverCaptcha(page: Page): Promise<boolean> {
         }
 
         if (audioBuffer && audioBuffer.length > 100) {
-          const mp3Path = `${SCRIPT_DIR}\\captcha_audio.mp3`;
+          const mp3Path = path.join(SCRIPT_DIR, "captcha_audio.mp3");
           writeFileSync(mp3Path, audioBuffer);
           try {
             const texto = execSync(
-              `python "${SCRIPT_DIR}\\transcribe.py" file "${mp3Path}"`,
+              `${PYTHON} "${path.join(SCRIPT_DIR, "transcribe.py")}" file "${mp3Path}"`,
               { encoding: "utf-8", timeout: 120000 }
             ).trim();
             console.log("[CAPTCHA] Transcripción:", texto);
@@ -291,32 +295,39 @@ interface DatosConsulta {
 async function parsearPagina(page: Page, cedula: string): Promise<{ datos: DatosConsulta; resultado_raw: string }> {
   const extraido = await page.evaluate(() => {
     const container = document.querySelector("#form\\:mensajeCiudadano") as HTMLElement | null;
-    if (!container) return null;
-    const bolds = Array.from(container.querySelectorAll("b")).map(b => (b as HTMLElement).innerText.trim());
-    const texto = container.innerText;
+    const texto = (container ?? document.body).innerText;
     const fechaMatch = texto.match(/siendo las\s+([\d:]+\s*[AP]M)\s+horas del\s+([\d\/]+)/i);
     return {
-      bolds,
+      tieneContainer: !!container,
       texto,
       hora_consulta: fechaMatch ? fechaMatch[1].trim() : null,
       fecha_consulta: fechaMatch ? fechaMatch[2].trim() : null,
     };
   });
 
-  if (!extraido) {
-    const fallback = await page.locator("body").innerText();
+  if (!extraido.tieneContainer) {
     return {
       datos: { cedula_consultada: cedula, nombre: null, tiene_antecedentes: false, estado: "NO DETERMINADO", fecha_consulta: null, hora_consulta: null },
-      resultado_raw: fallback.trim(),
+      resultado_raw: extraido.texto.trim(),
     };
   }
 
-  // bolds[0]=título informa, bolds[1]=cedula, bolds[2]=nombre, bolds[3]=estado
-  const nombre = extraido.bolds[2] ?? null;
-  const estadoRaw = extraido.bolds[3] ?? "";
-  const sinPendientes = /NO TIENE ASUNTOS PENDIENTES/i.test(estadoRaw);
-  const estado = estadoRaw || "NO DETERMINADO";
-  const tiene_antecedentes = !sinPendientes && /ASUNTOS PENDIENTES/i.test(estadoRaw);
+  const texto = extraido.texto;
+
+  // Parseo robusto desde el texto: NO depende de la posición de los <b>, que se
+  // corre cuando el resultado no trae nombre (p.ej. cédula sin registro).
+  const nombreMatch = texto.match(/Apellidos y Nombres:\s*(.+)/i);
+  const nombre = nombreMatch ? nombreMatch[1].trim() : null;
+
+  // Línea de resultado: la primera que menciona "ASUNTOS PENDIENTES" y NO forma
+  // parte del descargo legal (que repite la frase entre comillas).
+  const estadoLinea = texto
+    .split("\n")
+    .map(l => l.trim())
+    .find(l => /ASUNTOS PENDIENTES/i.test(l) && !/leyenda|aplica para|conformidad|art[íi]culo|sentencia/i.test(l));
+  const estado = estadoLinea || "NO DETERMINADO";
+  const sinPendientes = /NO TIENE ASUNTOS PENDIENTES/i.test(estado);
+  const tiene_antecedentes = /ASUNTOS PENDIENTES/i.test(estado) && !sinPendientes;
 
   return {
     datos: {
@@ -327,7 +338,7 @@ async function parsearPagina(page: Page, cedula: string): Promise<{ datos: Datos
       fecha_consulta: extraido.fecha_consulta,
       hora_consulta: extraido.hora_consulta,
     },
-    resultado_raw: extraido.texto,
+    resultado_raw: texto,
   };
 }
 
