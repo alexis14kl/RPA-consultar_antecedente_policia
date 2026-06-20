@@ -23,6 +23,12 @@ async function cdpActivo(port: number): Promise<boolean> {
 }
 
 
+async function consultar2(page: Page): Promise<void> {
+  await page.locator("#j_idt17").waitFor({ state: "visible", timeout: 10000 });
+  await page.locator("#j_idt17").click();
+  console.log("consultar2: click ejecutado.");
+}
+
 async function run(): Promise<void> {
   // Verificar CDP — si no está activo, el usuario debe usar run.bat
   if (!(await cdpActivo(CDP_PORT))) {
@@ -319,6 +325,8 @@ async function run(): Promise<void> {
   // Enviar formulario
   await page.locator("#j_idt17").click();
   console.log("Consultando...");
+
+  await consultar2(page);
 
   await page.waitForLoadState("networkidle", { timeout: 20000 }).catch(() => {});
   const result = await page.locator("body").innerText();
