@@ -4,11 +4,12 @@ Remove-Item "$env:LOCALAPPDATA\Google\Chrome\User Data\Profile 1\LOCK" -Force -E
 Remove-Item "$env:LOCALAPPDATA\Google\Chrome\User Data\lockfile" -Force -EA SilentlyContinue
 Remove-Item "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\LOCK" -Force -EA SilentlyContinue
 
-# Borrar sesion anterior para que Chrome no restaure tabs viejos
+# Borrar sesion anterior (formato viejo Y nuevo Chrome v124+) para no restaurar tabs de Buster
 Remove-Item "$env:LOCALAPPDATA\Google\Chrome\User Data\Profile 1\Current Session" -Force -EA SilentlyContinue
 Remove-Item "$env:LOCALAPPDATA\Google\Chrome\User Data\Profile 1\Current Tabs" -Force -EA SilentlyContinue
 Remove-Item "$env:LOCALAPPDATA\Google\Chrome\User Data\Profile 1\Last Session" -Force -EA SilentlyContinue
 Remove-Item "$env:LOCALAPPDATA\Google\Chrome\User Data\Profile 1\Last Tabs" -Force -EA SilentlyContinue
+Remove-Item "$env:LOCALAPPDATA\Google\Chrome\User Data\Profile 1\Sessions\*" -Force -EA SilentlyContinue
 
 Start-Process "C:\Program Files\Google\Chrome\Application\chrome.exe" -ArgumentList @(
     "--remote-debugging-port=9223",
