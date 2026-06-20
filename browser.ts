@@ -36,12 +36,13 @@ async function run(): Promise<void> {
   const ctxList = browser.contexts();
   const context = ctxList.length > 0 ? ctxList[0] : await browser.newContext();
 
-  // Parchar navigator.webdriver
+  // Parchar navigator.webdriver + bloquear window.open (evita tab data:audio del bframe reCAPTCHA)
   await context.addInitScript(() => {
     Object.defineProperty(navigator, "webdriver", { get: () => undefined });
     delete (window as any).cdc_adoQpoasnfa76pfcZLmcfl_Array;
     delete (window as any).cdc_adoQpoasnfa76pfcZLmcfl_Promise;
     delete (window as any).cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
+    window.open = () => null;
   });
 
   const pages = context.pages();
