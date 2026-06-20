@@ -140,12 +140,18 @@ async function resolverCaptcha(page: Page): Promise<boolean> {
   if (!passed) {
     bframe = page.frames().find(f => f.url().includes("bframe"));
     if (bframe) {
-      const hasAudioBtn = await bframe.locator("#recaptcha-audio-button").isVisible().catch(() => false);
+      const audioBtn = bframe.locator("#recaptcha-audio-button");
+      const hasAudioBtn = await audioBtn.isVisible().catch(() => false);
       if (hasAudioBtn) {
-        console.log("[CAPTCHA] Cambiando a audio challenge...");
-        await bframe.locator("#recaptcha-audio-button").click();
-        await esperar(2000);
-        bframe = page.frames().find(f => f.url().includes("bframe"));
+        const disabled = await audioBtn.evaluate((el: any) => el.disabled || el.classList.contains("rc-button-disabled")).catch(() => false);
+        if (disabled) {
+          console.log("[CAPTCHA] Audio button deshabilitado (rate limit Google). Saltando audio.");
+        } else {
+          console.log("[CAPTCHA] Cambiando a audio challenge...");
+          await audioBtn.click();
+          await esperar(2000);
+          bframe = page.frames().find(f => f.url().includes("bframe"));
+        }
       }
 
       // Capturar audio via CDP
@@ -329,18 +335,29 @@ async function parsearPagina(page: Page, cedula: string): Promise<{ datos: Datos
 async function ejecutarConsulta(cedula: string, tipo: string = "cc"): Promise<{ cedula: string; tipo: string; datos: DatosConsulta; resultado_raw: string; url: string }> {
   const page = mainPage!;
 
-  // Navegar al formulario
-  await irAFormulario(page);
+  // Verificar si ya estamos en el formulario con token vivo (evitar goto innecesario)
+  const tokenAge = Date.now() - captchaResueltaAt;
+  const tokenFresco = captchaResueltaAt > 0 && tokenAge < 110_000;
+  let enFormulario = false;
+
+  if (tokenFresco) {
+    enFormulario = await page.locator("#cedulaInput").isVisible({ timeout: 2000 }).catch(() => false);
+    if (enFormulario) console.log(`[CAPTCHA] Token fresco (${Math.round(tokenAge / 1000)}s) — reutilizando sesión.`);
+  }
+
+  if (!enFormulario) {
+    await irAFormulario(page);
+  }
+
   await page.locator("#cedulaTipo").selectOption(tipo);
   await page.locator("#cedulaInput").fill(cedula);
   console.log(`[CONSULTA] ${tipo.toUpperCase()} ${cedula}`);
 
-  // reCAPTCHA — reutilizar si token < 110s
-  const tokenAge = Date.now() - captchaResueltaAt;
+  // Captcha — solo resolver si el token no está activo
   let captchaOk = false;
-  if (tokenAge < 110_000 && captchaResueltaAt > 0) {
+  if (enFormulario && tokenFresco) {
     captchaOk = await rcResuelto(page);
-    if (captchaOk) console.log(`[CAPTCHA] Token reutilizado (${Math.round(tokenAge / 1000)}s).`);
+    if (captchaOk) console.log(`[CAPTCHA] Token reutilizado OK.`);
   }
   if (!captchaOk) {
     captchaOk = await resolverCaptcha(page);
@@ -355,7 +372,7 @@ async function ejecutarConsulta(cedula: string, tipo: string = "cc"): Promise<{ 
   const { datos, resultado_raw } = await parsearPagina(page, cedula);
   console.log(`[CONSULTA] OK — ${datos.nombre ?? "?"} | ${datos.estado}`);
 
-  // Volver para próxima consulta
+  // goBack al formulario — preserva sesión captcha para próxima consulta
   await page.goBack({ waitUntil: "domcontentloaded", timeout: 10000 }).catch(() => {});
 
   return { cedula, tipo, datos, resultado_raw, url };
