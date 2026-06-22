@@ -382,6 +382,9 @@ async function parsearPagina(page: Page, cedula: string): Promise<{ datos: Datos
 async function ejecutarConsulta(cedula: string, tipo: string = "cc"): Promise<{ cedula: string; tipo: string; datos: DatosConsulta; resultado_raw: string; url: string }> {
   const page = mainPage!;
 
+  // Esperar goBack de consulta anterior antes de empezar
+  await goBackPending;
+
   // Verificar si ya estamos en el formulario con token vivo (evitar goto innecesario)
   const tokenAge = Date.now() - captchaResueltaAt;
   const tokenFresco = captchaResueltaAt > 0 && tokenAge < 110_000;
@@ -419,11 +422,14 @@ async function ejecutarConsulta(cedula: string, tipo: string = "cc"): Promise<{ 
   const { datos, resultado_raw } = await parsearPagina(page, cedula);
   console.log(`[CONSULTA] OK — ${datos.nombre ?? "?"} | ${datos.estado}`);
 
-  // goBack al formulario — preserva sesión captcha para próxima consulta
-  await page.goBack({ waitUntil: "domcontentloaded", timeout: 10000 }).catch(() => {});
+  // goBack en background — respuesta HTTP se envía inmediatamente
+  goBackPending = page.goBack({ waitUntil: "domcontentloaded", timeout: 10000 }).then(() => {}).catch(() => {});
 
   return { cedula, tipo, datos, resultado_raw, url };
 }
+
+// goBack en background — se completa antes de que empiece la siguiente consulta
+let goBackPending: Promise<void> = Promise.resolve();
 
 // ── Cola serializada ───────────────────────────────────────────────────────
 interface QueueItem {
