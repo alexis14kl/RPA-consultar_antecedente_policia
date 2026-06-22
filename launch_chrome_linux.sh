@@ -12,25 +12,25 @@ pkill -f chromium 2>/dev/null || true
 echo "Creando perfil CDP..."
 mkdir -p "$USER_DATA"
 
-echo "Lanzando Chromium con CDP..."
+echo "Lanzando Chromium con Xvfb + CDP..."
 
-"$CHROME" \
+xvfb-run -a -s "-screen 0 1280x720x24" "$CHROME" \
   --remote-debugging-port=$CDP_PORT \
   --remote-allow-origins="*" \
   --no-sandbox \
   --disable-dev-shm-usage \
   --disable-gpu \
   --user-data-dir="$USER_DATA" \
-  "$URL" &
+  "$URL" >/dev/null 2>&1 &
 
 echo "Esperando CDP..."
 
 for i in $(seq 1 30); do
   sleep 1
-  if curl -s http://127.0.0.1:$CDP_PORT/json/version >/dev/null; then
+  curl -s http://127.0.0.1:$CDP_PORT/json/version >/dev/null && {
     echo "CDP OK en ${i}s"
     exit 0
-  fi
+  }
 done
 
 echo "ERROR: CDP no levantó"
