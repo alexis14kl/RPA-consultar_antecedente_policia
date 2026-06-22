@@ -2,9 +2,13 @@ import { chromium, Page } from "playwright";
 import { execSync } from "child_process";
 import { writeFileSync } from "fs";
 import * as http from "http";
+import * as path from "path";
 
 const URL_SITE = "https://antecedentes.policia.gov.co:7005/WebJudicial/index.xhtml";
-const SCRIPT_DIR = "C:\\Users\\NyGsoft\\Desktop\\antecedente de policia";
+// Carpeta del proyecto (donde vive este script) — multiplataforma Win/Mac/Linux.
+const SCRIPT_DIR = __dirname;
+// En Windows el binario es "python"; en Mac/Linux es "python3". Override con env PYTHON.
+const PYTHON = process.env.PYTHON ?? (process.platform === "win32" ? "python" : "python3");
 const CDP_PORT = 9223;
 
 async function esperar(ms: number) {
@@ -277,12 +281,12 @@ async function run(): Promise<void> {
 
       // Procesar audio si lo tenemos
       if (audioBuffer && audioBuffer.length > 100) {
-        const mp3Path = `${SCRIPT_DIR}\\captcha_audio.mp3`;
+        const mp3Path = path.join(SCRIPT_DIR, "captcha_audio.mp3");
         writeFileSync(mp3Path, audioBuffer);
         console.log(`Audio guardado: ${mp3Path} (${audioBuffer.length}b)`);
         try {
           const texto = execSync(
-            `python "${SCRIPT_DIR}\\transcribe.py" file "${mp3Path}"`,
+            `"${PYTHON}" "${path.join(SCRIPT_DIR, "transcribe.py")}" file "${mp3Path}"`,
             { encoding: "utf-8", timeout: 120000 }
           ).trim();
           console.log("Transcripción:", texto);

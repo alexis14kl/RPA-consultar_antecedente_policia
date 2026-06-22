@@ -1,10 +1,14 @@
-import { chromium, Page, Browser, BrowserContext } from "playwright";
+import { chromium, Page, Browser, BrowserContext, Frame } from "playwright";
 import { execSync } from "child_process";
 import { writeFileSync } from "fs";
 import * as http from "http";
+import * as path from "path";
 
 const URL_SITE = "https://antecedentes.policia.gov.co:7005/WebJudicial/index.xhtml";
-const SCRIPT_DIR = "C:\\Users\\NyGsoft\\Desktop\\antecedente de policia";
+// Carpeta del proyecto (donde vive este script) — multiplataforma Win/Mac/Linux.
+const SCRIPT_DIR = __dirname;
+// En Windows el binario es "python"; en Mac/Linux es "python3". Override con env PYTHON.
+const PYTHON = process.env.PYTHON ?? (process.platform === "win32" ? "python" : "python3");
 const CDP_PORT = 9223;
 const SERVER_PORT = parseInt(process.env.PORT ?? "3000");
 const CAPTCHA_TIMEOUT_MS = parseInt(process.env.CAPTCHA_TIMEOUT ?? "120") * 1000;
@@ -27,6 +31,30 @@ async function cdpActivo(port: number): Promise<boolean> {
       resolve(res.statusCode === 200);
     });
     req.on("error", () => resolve(false));
+    req.end();
+  });
+}
+
+// Garantiza que Chrome tenga al menos una pestaña antes de conectar por CDP.
+// Si Chrome quedó sin pestañas (p.ej. tras un browser.close() de browser.ts),
+// connectOverCDP falla con "Browser context management is not supported".
+async function asegurarPagina(port: number): Promise<void> {
+  const targets: any[] = await new Promise((resolve) => {
+    http.get(`http://127.0.0.1:${port}/json`, (res) => {
+      let data = "";
+      res.on("data", (d) => (data += d));
+      res.on("end", () => { try { resolve(JSON.parse(data)); } catch { resolve([]); } });
+    }).on("error", () => resolve([]));
+  });
+  if (targets.some((t) => t.type === "page")) return;
+  console.log("CDP sin pestañas — abriendo una nueva...");
+  await new Promise<void>((resolve) => {
+    const req = http.request(
+      `http://127.0.0.1:${port}/json/new?${URL_SITE}`,
+      { method: "PUT" },
+      (res) => { res.resume(); res.on("end", () => resolve()); }
+    );
+    req.on("error", () => resolve());
     req.end();
   });
 }
@@ -59,6 +87,7 @@ async function initBrowser(): Promise<void> {
   if (!(await cdpActivo(CDP_PORT))) {
     throw new Error(`CDP no activo en puerto ${CDP_PORT}. Ejecuta start-server.bat.`);
   }
+  await asegurarPagina(CDP_PORT);
   console.log("CDP activo — conectando browser...");
   browser = await chromium.connectOverCDP(`http://127.0.0.1:${CDP_PORT}`);
   const ctxList = browser.contexts();
@@ -91,6 +120,15 @@ async function initBrowser(): Promise<void> {
   console.log("Browser inicializado.");
 }
 
+// Obtiene el Frame del challenge (bframe) de reCAPTCHA. El bframe corre OOPIF,
+// por lo que page.frames() no lo lista de forma fiable; se accede vía el
+// elemento <iframe src*="bframe"> + contentFrame().
+async function getBframe(page: Page): Promise<Frame | null> {
+  const h = await page.locator('iframe[src*="bframe"]').elementHandle().catch(() => null);
+  if (!h) return null;
+  return await h.contentFrame().catch(() => null);
+}
+
 // ── Resolver reCAPTCHA ─────────────────────────────────────────────────────
 async function resolverCaptcha(page: Page): Promise<boolean> {
   // Click checkbox
@@ -104,7 +142,7 @@ async function resolverCaptcha(page: Page): Promise<boolean> {
   for (let i = 0; i < 16 && !passed; i++) {
     await esperar(500);
     if (await rcResuelto(page)) { console.log("[CAPTCHA] Pasó sin challenge."); passed = true; break; }
-    const bframeTemp = page.frames().find(f => f.url().includes("bframe"));
+    const bframeTemp = await getBframe(page);
     if (bframeTemp) {
       const hasChallenge = await bframeTemp.locator(
         "#rc-imageselect, #rc-audiochallenge, #recaptcha-audio-button, #solver-button"
@@ -113,32 +151,34 @@ async function resolverCaptcha(page: Page): Promise<boolean> {
     }
   }
 
-  // Intentar Buster
-  let bframe = page.frames().find(f => f.url().includes("bframe"));
-  if (!passed && bframe) {
-    console.log("[CAPTCHA] Buscando Buster...");
-    for (let i = 0; i < 5 && !passed; i++) {
-      bframe = page.frames().find(f => f.url().includes("bframe"));
-      if (bframe) {
-        const visible = await bframe.locator("#solver-button").isVisible().catch(() => false);
-        if (visible) {
-          console.log(`[CAPTCHA] Buster encontrado (${i + 1}s). Clickeando...`);
-          await bframe.locator("#solver-button").click();
-          for (let j = 0; j < 60 && !passed; j++) {
-            await esperar(1000);
-            if (await rcResuelto(page)) { console.log("[CAPTCHA] Buster resolvió."); passed = true; }
-            if (j % 10 === 9) console.log(`[CAPTCHA] Buster trabajando... (${j + 1}s)`);
-          }
-          break;
+  // Intentar Buster — su ícono es un overlay de extensión sobre .help-button-holder
+  // dentro del bframe (NO es #solver-button, ni vive en el DOM del bframe). El bframe
+  // corre OOPIF, así que se accede con getBframe() (contentFrame); se clic con
+  // force:true porque el holder no pasa el chequeo de "actionability" de Playwright
+  // y Playwright dispara el click en el centro del elemento (sin coordenadas fijas).
+  let bframe: Frame | null = null;
+  if (!passed) {
+    bframe = await getBframe(page);
+    if (bframe) {
+      const holder = bframe.locator(".help-button-holder");
+      const hasHolder = (await holder.count().catch(() => 0)) > 0;
+      if (hasHolder) {
+        console.log("[CAPTCHA] Clic en ícono Buster (.help-button-holder)...");
+        await holder.click({ force: true, timeout: 8000 }).catch((e) => console.log("[CAPTCHA] click Buster:", (e as Error).message));
+        for (let j = 0; j < 25 && !passed; j++) {
+          await esperar(1000);
+          if (await rcResuelto(page)) { console.log("[CAPTCHA] Buster resolvió."); passed = true; }
+          if (j % 10 === 9) console.log(`[CAPTCHA] Buster trabajando... (${j + 1}s)`);
         }
+      } else {
+        console.log("[CAPTCHA] .help-button-holder no presente — Buster no disponible.");
       }
-      await esperar(1000);
     }
   }
 
   // Intentar audio challenge
   if (!passed) {
-    bframe = page.frames().find(f => f.url().includes("bframe"));
+    bframe = await getBframe(page);
     if (bframe) {
       const audioBtn = bframe.locator("#recaptcha-audio-button");
       const hasAudioBtn = await audioBtn.isVisible().catch(() => false);
@@ -150,7 +190,7 @@ async function resolverCaptcha(page: Page): Promise<boolean> {
           console.log("[CAPTCHA] Cambiando a audio challenge...");
           await audioBtn.click();
           await esperar(2000);
-          bframe = page.frames().find(f => f.url().includes("bframe"));
+          bframe = await getBframe(page);
         }
       }
 
@@ -166,7 +206,7 @@ async function resolverCaptcha(page: Page): Promise<boolean> {
         }
       });
 
-      bframe = page.frames().find(f => f.url().includes("bframe"));
+      bframe = await getBframe(page);
       if (bframe) {
         const downloadHref = await bframe.locator(".rc-audiochallenge-tdownload-link, a[href*='payload']").getAttribute("href").catch(() => null);
 
@@ -215,11 +255,11 @@ async function resolverCaptcha(page: Page): Promise<boolean> {
         }
 
         if (audioBuffer && audioBuffer.length > 100) {
-          const mp3Path = `${SCRIPT_DIR}\\captcha_audio.mp3`;
+          const mp3Path = path.join(SCRIPT_DIR, "captcha_audio.mp3");
           writeFileSync(mp3Path, audioBuffer);
           try {
             const texto = execSync(
-              `python "${SCRIPT_DIR}\\transcribe.py" file "${mp3Path}"`,
+              `"${PYTHON}" "${path.join(SCRIPT_DIR, "transcribe.py")}" file "${mp3Path}"`,
               { encoding: "utf-8", timeout: 120000 }
             ).trim();
             console.log("[CAPTCHA] Transcripción:", texto);
@@ -291,32 +331,39 @@ interface DatosConsulta {
 async function parsearPagina(page: Page, cedula: string): Promise<{ datos: DatosConsulta; resultado_raw: string }> {
   const extraido = await page.evaluate(() => {
     const container = document.querySelector("#form\\:mensajeCiudadano") as HTMLElement | null;
-    if (!container) return null;
-    const bolds = Array.from(container.querySelectorAll("b")).map(b => (b as HTMLElement).innerText.trim());
-    const texto = container.innerText;
+    const texto = (container ?? document.body).innerText;
     const fechaMatch = texto.match(/siendo las\s+([\d:]+\s*[AP]M)\s+horas del\s+([\d\/]+)/i);
     return {
-      bolds,
+      tieneContainer: !!container,
       texto,
       hora_consulta: fechaMatch ? fechaMatch[1].trim() : null,
       fecha_consulta: fechaMatch ? fechaMatch[2].trim() : null,
     };
   });
 
-  if (!extraido) {
-    const fallback = await page.locator("body").innerText();
+  if (!extraido.tieneContainer) {
     return {
       datos: { cedula_consultada: cedula, nombre: null, tiene_antecedentes: false, estado: "NO DETERMINADO", fecha_consulta: null, hora_consulta: null },
-      resultado_raw: fallback.trim(),
+      resultado_raw: extraido.texto.trim(),
     };
   }
 
-  // bolds[0]=título informa, bolds[1]=cedula, bolds[2]=nombre, bolds[3]=estado
-  const nombre = extraido.bolds[2] ?? null;
-  const estadoRaw = extraido.bolds[3] ?? "";
-  const sinPendientes = /NO TIENE ASUNTOS PENDIENTES/i.test(estadoRaw);
-  const estado = estadoRaw || "NO DETERMINADO";
-  const tiene_antecedentes = !sinPendientes && /ASUNTOS PENDIENTES/i.test(estadoRaw);
+  const texto = extraido.texto;
+
+  // Parseo robusto desde el texto: NO depende de la posición de los <b>, que se
+  // corre cuando el resultado no trae nombre (p.ej. cédula sin registro).
+  const nombreMatch = texto.match(/Apellidos y Nombres:\s*(.+)/i);
+  const nombre = nombreMatch ? nombreMatch[1].trim() : null;
+
+  // Línea de resultado: la primera que menciona "ASUNTOS PENDIENTES" y NO forma
+  // parte del descargo legal (que repite la frase entre comillas).
+  const estadoLinea = texto
+    .split("\n")
+    .map(l => l.trim())
+    .find(l => /ASUNTOS PENDIENTES/i.test(l) && !/leyenda|aplica para|conformidad|art[íi]culo|sentencia/i.test(l));
+  const estado = estadoLinea || "NO DETERMINADO";
+  const sinPendientes = /NO TIENE ASUNTOS PENDIENTES/i.test(estado);
+  const tiene_antecedentes = /ASUNTOS PENDIENTES/i.test(estado) && !sinPendientes;
 
   return {
     datos: {
@@ -327,7 +374,7 @@ async function parsearPagina(page: Page, cedula: string): Promise<{ datos: Datos
       fecha_consulta: extraido.fecha_consulta,
       hora_consulta: extraido.hora_consulta,
     },
-    resultado_raw: extraido.texto,
+    resultado_raw: texto,
   };
 }
 

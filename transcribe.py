@@ -2,9 +2,15 @@ import sys
 import os
 import urllib.request
 
-# ffmpeg path explícito (winget no actualiza PATH en sesión activa)
-FFMPEG_DIR = r"C:\Users\NyGsoft\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.1.1-full_build\bin"
-os.environ["PATH"] = FFMPEG_DIR + os.pathsep + os.environ.get("PATH", "")
+# ffmpeg: en Windows winget no actualiza el PATH en la sesión activa, así que se
+# inyecta la ruta explícita. En Mac/Linux ffmpeg vive en el PATH (brew/apt), no
+# se toca nada. Override opcional con la variable de entorno FFMPEG_DIR.
+FFMPEG_DIR = os.environ.get(
+    "FFMPEG_DIR",
+    r"C:\Users\NyGsoft\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.1.1-full_build\bin",
+)
+if os.path.isdir(FFMPEG_DIR):
+    os.environ["PATH"] = FFMPEG_DIR + os.pathsep + os.environ.get("PATH", "")
 
 def download_audio(url: str, dest: str):
     headers = {
