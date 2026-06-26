@@ -441,7 +441,10 @@ async function ejecutarConsulta(
   const screenshot_url = `${BASE_URL}/screenshot/${screenshotFile}`;
   console.log(`[W${wid}][SCREENSHOT] ${screenshot_url}`);
 
-  worker.goBackPending = page.goBack({ waitUntil: "domcontentloaded", timeout: 10000 }).then(() => {}).catch(() => {});
+  // waitUntil:"commit" en vez de "domcontentloaded": el sitio es JSF y el back
+  // (POST/bfcache) NUNCA dispara domcontentloaded → antes agotaba el timeout de
+  // 10s en CADA consulta. Con "commit" retorna en ~0.07s y el form queda listo.
+  worker.goBackPending = page.goBack({ waitUntil: "commit", timeout: 10000 }).then(() => {}).catch(() => {});
 
   return { cedula, tipo, datos, resultado_raw, url, screenshot_url };
 }
