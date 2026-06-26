@@ -466,26 +466,26 @@ interface QueueItem {
   resolve: (v: any) => void;
   reject: (e: any) => void;
 }
-const workerQueues: QueueItem[][] = [];
+// Cola COMPARTIDA (pool rodante): cualquier worker libre toma la siguiente
+// cédula. Reparte parejo solo — el worker que termina rápido jala más trabajo,
+// en vez del round-robin estático que dejaba a un worker ocioso.
+const cola: QueueItem[] = [];
 
 function encolarConsulta(cedula: string, tipo: string): Promise<any> {
   return new Promise((resolve, reject) => {
-    const wid = workerQueues.reduce((minIdx, q, i) =>
-      q.length < workerQueues[minIdx].length ? i : minIdx, 0);
-    workerQueues[wid].push({ cedula, tipo, resolve, reject });
+    cola.push({ cedula, tipo, resolve, reject });
   });
 }
 
 function encolarLote(items: { cedula: string; tipo: string }[]): Promise<any>[] {
-  return items.map((item, idx) =>
+  return items.map(item =>
     new Promise((resolve, reject) => {
-      const wid = idx % workerQueues.length;
-      workerQueues[wid].push({ cedula: item.cedula, tipo: item.tipo, resolve, reject });
+      cola.push({ cedula: item.cedula, tipo: item.tipo, resolve, reject });
     })
   );
 }
 
-function colaTotal(): number { return workerQueues.reduce((s, q) => s + q.length, 0); }
+function colaTotal(): number { return cola.length; }
 
 // ── Backoff de rate-limit — si Google bloquea el audio varias veces seguidas,
 // pausar para que su ventana se resetee (evita la cascada de bloqueos).
@@ -521,10 +521,9 @@ function releaseCaptchaMutex(): void { captchaMutexFree = true; }
 
 // ── Worker loop ────────────────────────────────────────────────────────────
 function startWorker(worker: WorkerState): void {
-  workerQueues[worker.id] = workerQueues[worker.id] ?? [];
   const loop = async () => {
     while (true) {
-      const item = workerQueues[worker.id].shift();
+      const item = cola.shift();   // pool rodante: el worker libre toma la siguiente
       if (!item) { await esperar(100); continue; }
       worker.busy = true;
       try {
@@ -573,7 +572,7 @@ const server = http.createServer(async (req, res) => {
       ok: true,
       cdp: CDP_PORT,
       en_cola: colaTotal(),
-      workers: workers.map(w => ({ id: w.id, busy: w.busy, en_cola: workerQueues[w.id]?.length ?? 0 })),
+      workers: workers.map(w => ({ id: w.id, busy: w.busy })),
       procesando: workers.some(w => w.busy),
     });
   }
