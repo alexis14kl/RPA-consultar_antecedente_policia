@@ -446,7 +446,12 @@ async function procesarCola() {
   procesando = true;
   const item = cola.shift()!;
   try {
-    const result = await ejecutarConsulta(item.cedula, item.tipo);
+    let result = await ejecutarConsulta(item.cedula, item.tipo);
+    if (result.datos.estado === "NO DETERMINADO") {
+      console.log(`[RETRY] Resultado NO DETERMINADO — reintentando...`);
+      await new Promise(r => setTimeout(r, 3000));
+      result = await ejecutarConsulta(item.cedula, item.tipo);
+    }
     item.resolve(result);
   } catch (e) {
     item.reject(e);
