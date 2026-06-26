@@ -517,6 +517,25 @@ const server = http.createServer(async (req, res) => {
     process.exit(1);
   }
 
+  // ── Keep-alive sesión JSF (cada 5 min, actúa si hay 25+ min de inactividad) ──
+  const KEEPALIVE_INTERVAL = 5 * 60 * 1000;
+  const KEEPALIVE_IDLE_THRESHOLD = 25 * 60 * 1000;
+  setInterval(async () => {
+    if (procesando || cola.length > 0) return;
+    const idle = Date.now() - (captchaResueltaAt || Date.now());
+    if (idle < KEEPALIVE_IDLE_THRESHOLD) return;
+    try {
+      if (!mainPage) return;
+      await mainPage.evaluate(() =>
+        fetch("https://antecedentes.policia.gov.co:7005/WebJudicial/index.xhtml", {
+          method: "HEAD",
+          credentials: "include",
+        }).catch(() => {})
+      );
+      console.log("[KEEPALIVE] Sesión JSF renovada.");
+    } catch (e) {}
+  }, KEEPALIVE_INTERVAL);
+
   server.listen(SERVER_PORT, "127.0.0.1", () => {
     console.log(`\nServidor activo en http://127.0.0.1:${SERVER_PORT}`);
     console.log("  POST /consultar  { \"cedula\": \"1234567\", \"tipo\": \"cc\" }");
