@@ -9,7 +9,7 @@ Incluye consideraciones para **VPS real** (IP de datacenter).
 
 ```bash
 apt update
-apt install -y chromium xvfb curl python3 python3-pip ffmpeg
+apt install -y chromium xvfb curl python3 python3-pip ffmpeg flac
 ```
 
 ---
