@@ -3,7 +3,7 @@
 CDP_PORT=9223
 URL="https://antecedentes.policia.gov.co:7005/WebJudicial/index.xhtml"
 CHROME="/usr/lib/chromium/chromium"
-USER_DATA="$HOME/chrome-cdp-profile"
+USER_DATA="$(dirname "$0")/chrome-cdp-profile"
 XDISPLAY=:99
 
 echo "[1] Limpiando procesos..."
