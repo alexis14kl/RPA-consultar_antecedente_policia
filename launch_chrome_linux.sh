@@ -32,7 +32,7 @@ $CHROME \
   --no-first-run \
   --no-default-browser-check \
   --disable-blink-features=AutomationControlled \
-  --load-extension=/home/droid/RPA-consultar_antecedente_policia/buster-ext \
+  --load-extension="$(dirname "$0")/buster-ext" \
   "$URL" >/dev/null 2>&1 &
 
 echo "[5] Esperando CDP..."
