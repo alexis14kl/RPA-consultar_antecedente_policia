@@ -494,6 +494,7 @@ const server = http.createServer(async (req, res) => {
     const cedula = String(body.cedula ?? "").trim();
     const tipo = String(body.tipo ?? "cc").trim();
     if (!cedula) return jsonResp(res, 400, { ok: false, error: "cedula requerida" });
+    if (!/^\d+$/.test(cedula)) return jsonResp(res, 400, { ok: false, error: "cedula debe contener solo numeros" });
 
     try {
       const result = await encolarConsulta(cedula, tipo);
