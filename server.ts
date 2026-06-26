@@ -116,9 +116,10 @@ async function initBrowser(): Promise<void> {
   }
   workers.push({ id: 0, page: page0, captchaResueltaAt: 0, goBackPending: Promise.resolve(), busy: false });
 
-  // Workers 1..N — páginas nuevas (creadas ANTES del handler para no auto-cerrarlas)
+  // Workers 1..N — páginas nuevas, pre-navegar a URL para no quedar en about:blank
   for (let i = 1; i < MAX_WORKERS; i++) {
     const p = await context.newPage();
+    p.goto(URL_SITE, { waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => {});
     workers.push({ id: i, page: p, captchaResueltaAt: 0, goBackPending: Promise.resolve(), busy: false });
   }
 
