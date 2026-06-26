@@ -402,7 +402,9 @@ async function ejecutarConsulta(
       captchaOk = await rcResuelto(page);
       if (!captchaOk) {
         captchaOk = await resolverCaptcha(page, wid);
-        if (captchaOk) worker.captchaResueltaAt = Date.now();
+        if (captchaOk) {
+          worker.captchaResueltaAt = Date.now();
+        }
       }
     } finally {
       releaseCaptchaMutex();
