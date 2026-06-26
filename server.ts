@@ -549,6 +549,39 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  if (req.method === "POST" && req.url === "/consultar-lote") {
+    let body: any;
+    try { body = await parseBody(req); } catch (e) {
+      return jsonResp(res, 400, { ok: false, error: "JSON inválido" });
+    }
+    if (!Array.isArray(body.cedulas) || body.cedulas.length === 0)
+      return jsonResp(res, 400, { ok: false, error: "cedulas debe ser un array no vacío" });
+    if (body.cedulas.length > 50)
+      return jsonResp(res, 400, { ok: false, error: "máximo 50 cédulas por lote" });
+
+    const items = body.cedulas.map((item: any) => ({
+      cedula: String(item.cedula ?? "").trim(),
+      tipo: String(item.tipo ?? "cc").trim(),
+    }));
+
+    const invalidas = items.filter((i: any) => !i.cedula || !/^\d+$/.test(i.cedula));
+    if (invalidas.length > 0)
+      return jsonResp(res, 400, { ok: false, error: `Cédulas inválidas: ${invalidas.map((i: any) => i.cedula || "(vacía)").join(", ")}` });
+
+    console.log(`[LOTE] ${items.length} consultas encoladas`);
+    const resultados = await Promise.all(
+      items.map(async (item: any) => {
+        try {
+          const r = await encolarConsulta(item.cedula, item.tipo);
+          return { ok: true, ...r };
+        } catch (e: any) {
+          return { ok: false, cedula: item.cedula, error: e.message };
+        }
+      })
+    );
+    return jsonResp(res, 200, { ok: true, total: resultados.length, resultados });
+  }
+
   jsonResp(res, 404, { ok: false, error: "Ruta no encontrada" });
 });
 
