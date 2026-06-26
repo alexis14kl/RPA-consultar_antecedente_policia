@@ -5,22 +5,29 @@ import * as http from "http";
 import * as path from "path";
 
 const URL_SITE = "https://antecedentes.policia.gov.co:7005/WebJudicial/index.xhtml";
-// Carpeta del proyecto (donde vive este script) — multiplataforma Win/Mac/Linux.
 const SCRIPT_DIR = __dirname;
-// En Windows el binario es "python"; en Mac/Linux es "python3". Override con env PYTHON.
 const PYTHON = process.env.PYTHON ?? (process.platform === "win32" ? "python" : "python3");
 const CDP_PORT = 9223;
 const SERVER_PORT = parseInt(process.env.PORT ?? "3000");
 const CAPTCHA_TIMEOUT_MS = parseInt(process.env.CAPTCHA_TIMEOUT ?? "120") * 1000;
 const BASE_URL = process.env.BASE_URL ?? `http://localhost:${SERVER_PORT}`;
+const MAX_WORKERS = parseInt(process.env.WORKERS ?? "2");
 const SCREENSHOTS_DIR = path.join(SCRIPT_DIR, "screenshots");
 mkdirSync(SCREENSHOTS_DIR, { recursive: true });
 
-// ── Estado global del browser ──────────────────────────────────────────────
+// ── Browser global ─────────────────────────────────────────────────────────
 let browser: Browser | null = null;
 let context: BrowserContext | null = null;
-let mainPage: Page | null = null;
-let captchaResueltaAt: number = 0;
+
+// ── Worker state ───────────────────────────────────────────────────────────
+interface WorkerState {
+  id: number;
+  page: Page;
+  captchaResueltaAt: number;
+  goBackPending: Promise<void>;
+  busy: boolean;
+}
+const workers: WorkerState[] = [];
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function esperar(ms: number) {
@@ -38,9 +45,6 @@ async function cdpActivo(port: number): Promise<boolean> {
   });
 }
 
-// Garantiza que Chrome tenga al menos una pestaña antes de conectar por CDP.
-// Si Chrome quedó sin pestañas (p.ej. tras un browser.close() de browser.ts),
-// connectOverCDP falla con "Browser context management is not supported".
 async function asegurarPagina(port: number): Promise<void> {
   const targets: any[] = await new Promise((resolve) => {
     http.get(`http://127.0.0.1:${port}/json`, (res) => {
@@ -85,10 +89,10 @@ async function rcResuelto(page: Page): Promise<boolean> {
   return false;
 }
 
-// ── Inicializar browser (una vez al arrancar) ──────────────────────────────
+// ── Inicializar browser ────────────────────────────────────────────────────
 async function initBrowser(): Promise<void> {
   if (!(await cdpActivo(CDP_PORT))) {
-    throw new Error(`CDP no activo en puerto ${CDP_PORT}. Ejecuta start-server.bat.`);
+    throw new Error(`CDP no activo en puerto ${CDP_PORT}.`);
   }
   await asegurarPagina(CDP_PORT);
   console.log("CDP activo — conectando browser...");
@@ -104,28 +108,38 @@ async function initBrowser(): Promise<void> {
     window.open = () => null;
   });
 
-  const pages = context.pages();
-  mainPage = pages.find(p => p.url().includes("antecedentes.policia.gov.co")) ?? pages[0] ?? await context.newPage();
-  for (const p of pages) {
-    if (p !== mainPage) await p.close().catch(() => {});
+  // Worker 0 — reutilizar página existente
+  const existingPages = context.pages();
+  const page0 = existingPages.find(p => p.url().includes("antecedentes.policia.gov.co")) ?? existingPages[0] ?? await context.newPage();
+  for (const p of existingPages) {
+    if (p !== page0) await p.close().catch(() => {});
+  }
+  workers.push({ id: 0, page: page0, captchaResueltaAt: 0, goBackPending: Promise.resolve(), busy: false });
+
+  // Workers 1..N — páginas nuevas (creadas ANTES del handler para no auto-cerrarlas)
+  for (let i = 1; i < MAX_WORKERS; i++) {
+    const p = await context.newPage();
+    workers.push({ id: i, page: p, captchaResueltaAt: 0, goBackPending: Promise.resolve(), busy: false });
   }
 
-  // Cerrar tabs nuevas que extensiones abran
+  // Cerrar tabs que extensiones abran DESPUÉS de crear nuestras páginas
   const browserCdp = await browser.newBrowserCDPSession();
   await browserCdp.send("Target.setDiscoverTargets", { discover: true });
   browserCdp.on("Target.targetCreated", async (event: any) => {
     const t = event.targetInfo;
-    if (t.type === "page" && !t.url.includes("antecedentes.policia.gov.co")) {
+    if (t.type === "page" && t.url !== "about:blank" && !t.url.includes("antecedentes.policia.gov.co")) {
       await browserCdp.send("Target.closeTarget", { targetId: t.targetId }).catch(() => {});
     }
   });
 
-  console.log("Browser inicializado.");
+  console.log(`Browser inicializado — ${MAX_WORKERS} worker(s) listos.`);
+
+  // Arrancar loops de workers
+  for (const w of workers) {
+    startWorker(w);
+  }
 }
 
-// Obtiene el Frame del challenge (bframe) de reCAPTCHA. El bframe corre OOPIF,
-// por lo que page.frames() no lo lista de forma fiable; se accede vía el
-// elemento <iframe src*="bframe"> + contentFrame().
 async function getBframe(page: Page): Promise<Frame | null> {
   const h = await page.locator('iframe[src*="bframe"]').elementHandle().catch(() => null);
   if (!h) return null;
@@ -133,32 +147,25 @@ async function getBframe(page: Page): Promise<Frame | null> {
 }
 
 // ── Resolver reCAPTCHA ─────────────────────────────────────────────────────
-async function resolverCaptcha(page: Page): Promise<boolean> {
-  // Click checkbox
+async function resolverCaptcha(page: Page, wid: number): Promise<boolean> {
   const recaptchaFrame = page.frameLocator('iframe[title="reCAPTCHA"]');
   await recaptchaFrame.locator("#recaptcha-anchor > div:first-child").waitFor({ state: "visible", timeout: 15000 });
   await recaptchaFrame.locator("#recaptcha-anchor > div:first-child").click();
-  console.log("[CAPTCHA] Checkbox clickeado...");
+  console.log(`[W${wid}][CAPTCHA] Checkbox clickeado...`);
 
-  // Poll 8s — sale si pasa o si aparece challenge
   let passed = false;
   for (let i = 0; i < 16 && !passed; i++) {
     await esperar(500);
-    if (await rcResuelto(page)) { console.log("[CAPTCHA] Pasó sin challenge."); passed = true; break; }
+    if (await rcResuelto(page)) { console.log(`[W${wid}][CAPTCHA] Pasó sin challenge.`); passed = true; break; }
     const bframeTemp = await getBframe(page);
     if (bframeTemp) {
       const hasChallenge = await bframeTemp.locator(
         "#rc-imageselect, #rc-audiochallenge, #recaptcha-audio-button, #solver-button"
       ).isVisible().catch(() => false);
-      if (hasChallenge) { console.log("[CAPTCHA] Challenge detectado."); break; }
+      if (hasChallenge) { console.log(`[W${wid}][CAPTCHA] Challenge detectado.`); break; }
     }
   }
 
-  // Intentar Buster — su ícono es un overlay de extensión sobre .help-button-holder
-  // dentro del bframe (NO es #solver-button, ni vive en el DOM del bframe). El bframe
-  // corre OOPIF, así que se accede con getBframe() (contentFrame); se clic con
-  // force:true porque el holder no pasa el chequeo de "actionability" de Playwright
-  // y Playwright dispara el click en el centro del elemento (sin coordenadas fijas).
   let bframe: Frame | null = null;
   if (!passed) {
     bframe = await getBframe(page);
@@ -166,20 +173,19 @@ async function resolverCaptcha(page: Page): Promise<boolean> {
       const holder = bframe.locator(".help-button-holder");
       const hasHolder = (await holder.count().catch(() => 0)) > 0;
       if (hasHolder) {
-        console.log("[CAPTCHA] Clic en ícono Buster (.help-button-holder)...");
-        await holder.click({ force: true, timeout: 8000 }).catch((e) => console.log("[CAPTCHA] click Buster:", (e as Error).message));
+        console.log(`[W${wid}][CAPTCHA] Clic en ícono Buster (.help-button-holder)...`);
+        await holder.click({ force: true, timeout: 8000 }).catch((e) => console.log(`[W${wid}][CAPTCHA] click Buster:`, (e as Error).message));
         for (let j = 0; j < 25 && !passed; j++) {
           await esperar(1000);
-          if (await rcResuelto(page)) { console.log("[CAPTCHA] Buster resolvió."); passed = true; }
-          if (j % 10 === 9) console.log(`[CAPTCHA] Buster trabajando... (${j + 1}s)`);
+          if (await rcResuelto(page)) { console.log(`[W${wid}][CAPTCHA] Buster resolvió.`); passed = true; }
+          if (j % 10 === 9) console.log(`[W${wid}][CAPTCHA] Buster trabajando... (${j + 1}s)`);
         }
       } else {
-        console.log("[CAPTCHA] .help-button-holder no presente — Buster no disponible.");
+        console.log(`[W${wid}][CAPTCHA] .help-button-holder no presente — Buster no disponible.`);
       }
     }
   }
 
-  // Intentar audio challenge
   if (!passed) {
     bframe = await getBframe(page);
     if (bframe) {
@@ -188,16 +194,15 @@ async function resolverCaptcha(page: Page): Promise<boolean> {
       if (hasAudioBtn) {
         const disabled = await audioBtn.evaluate((el: any) => el.disabled || el.classList.contains("rc-button-disabled")).catch(() => false);
         if (disabled) {
-          console.log("[CAPTCHA] Audio button deshabilitado (rate limit Google). Saltando audio.");
+          console.log(`[W${wid}][CAPTCHA] Audio button deshabilitado (rate limit Google).`);
         } else {
-          console.log("[CAPTCHA] Cambiando a audio challenge...");
+          console.log(`[W${wid}][CAPTCHA] Cambiando a audio challenge...`);
           await audioBtn.click();
           await esperar(2000);
           bframe = await getBframe(page);
         }
       }
 
-      // Capturar audio via CDP
       const cdpSession = await context!.newCDPSession(page);
       await cdpSession.send("Network.enable");
       const audioRequests: Map<string, string> = new Map();
@@ -212,27 +217,22 @@ async function resolverCaptcha(page: Page): Promise<boolean> {
       bframe = await getBframe(page);
       if (bframe) {
         const downloadHref = await bframe.locator(".rc-audiochallenge-tdownload-link, a[href*='payload']").getAttribute("href").catch(() => null);
-
         let requestId: string | null = null;
         for (let i = 0; i < 16; i++) {
-          if (audioRequests.size > 0) {
-            requestId = [...audioRequests.keys()][audioRequests.size - 1];
-            break;
-          }
+          if (audioRequests.size > 0) { requestId = [...audioRequests.keys()][audioRequests.size - 1]; break; }
           await esperar(500);
         }
 
         let audioBuffer: Buffer | null = null;
-
         if (requestId) {
           try {
             const resp = await cdpSession.send("Network.getResponseBody", { requestId });
             if (resp.body && resp.body.length > 10) {
               audioBuffer = Buffer.from(resp.body, resp.base64Encoded ? "base64" : "utf-8");
-              console.log(`[CAPTCHA] Audio CDP: ${audioBuffer.length}b`);
+              console.log(`[W${wid}][CAPTCHA] Audio CDP: ${audioBuffer.length}b`);
             }
           } catch (e) {
-            console.log("[CAPTCHA] CDP getResponseBody falló:", (e as Error).message);
+            console.log(`[W${wid}][CAPTCHA] CDP getResponseBody falló:`, (e as Error).message);
           }
         }
 
@@ -244,28 +244,27 @@ async function resolverCaptcha(page: Page): Promise<boolean> {
               const ab = await r.arrayBuffer();
               if (ab.byteLength === 0) return "";
               const u8 = new Uint8Array(ab);
-              let s = "";
-              u8.forEach(b => (s += String.fromCharCode(b)));
+              let s = ""; u8.forEach(b => (s += String.fromCharCode(b)));
               return btoa(s);
             }, downloadHref);
             if (b64.length > 10) {
               audioBuffer = Buffer.from(b64, "base64");
-              console.log(`[CAPTCHA] Audio iframe fetch: ${audioBuffer.length}b`);
+              console.log(`[W${wid}][CAPTCHA] Audio iframe fetch: ${audioBuffer.length}b`);
             }
           } catch (e) {
-            console.log("[CAPTCHA] iframe fetch falló:", (e as Error).message);
+            console.log(`[W${wid}][CAPTCHA] iframe fetch falló:`, (e as Error).message);
           }
         }
 
         if (audioBuffer && audioBuffer.length > 100) {
-          const mp3Path = path.join(SCRIPT_DIR, "captcha_audio.mp3");
+          const mp3Path = path.join(SCRIPT_DIR, `captcha_audio_w${wid}.mp3`);
           writeFileSync(mp3Path, audioBuffer);
           try {
             const texto = execSync(
               `"${PYTHON}" "${path.join(SCRIPT_DIR, "transcribe.py")}" file "${mp3Path}"`,
               { encoding: "utf-8", timeout: 120000 }
             ).trim();
-            console.log("[CAPTCHA] Transcripción:", texto);
+            console.log(`[W${wid}][CAPTCHA] Transcripción:`, texto);
             if (texto.length > 0) {
               await bframe.locator("#audio-response").fill(texto);
               await bframe.locator("#recaptcha-verify-button").click();
@@ -273,55 +272,51 @@ async function resolverCaptcha(page: Page): Promise<boolean> {
               passed = await rcResuelto(page);
             }
           } catch (e) {
-            console.log("[CAPTCHA] Error transcripción:", (e as Error).message);
+            console.log(`[W${wid}][CAPTCHA] Error transcripción:`, (e as Error).message);
           }
         } else {
-          console.log("[CAPTCHA] Audio bloqueado por Google (0 bytes).");
+          console.log(`[W${wid}][CAPTCHA] Audio bloqueado por Google (0 bytes).`);
         }
-
         await cdpSession.detach().catch(() => {});
       }
     }
   }
 
-  // Detección tardía
   if (!passed && await rcResuelto(page)) {
-    console.log("[CAPTCHA] Resuelto (detección tardía).");
+    console.log(`[W${wid}][CAPTCHA] Resuelto (detección tardía).`);
     passed = true;
   }
 
-  // Timeout — esperar que Buster/extensión resuelva en background
   if (!passed) {
-    console.log(`[CAPTCHA] Esperando resolución... timeout ${CAPTCHA_TIMEOUT_MS / 1000}s`);
+    console.log(`[W${wid}][CAPTCHA] Esperando resolución... timeout ${CAPTCHA_TIMEOUT_MS / 1000}s`);
     let waited = 0;
     while (waited < CAPTCHA_TIMEOUT_MS && !passed) {
       await esperar(2000);
       waited += 2000;
       if (await rcResuelto(page)) {
-        console.log(`[CAPTCHA] Resuelto en background (${waited / 1000}s).`);
+        console.log(`[W${wid}][CAPTCHA] Resuelto en background (${waited / 1000}s).`);
         passed = true;
         break;
       }
-      if (waited % 20000 === 0) console.log(`[CAPTCHA] Esperando... ${waited / 1000}s/${CAPTCHA_TIMEOUT_MS / 1000}s`);
+      if (waited % 20000 === 0) console.log(`[W${wid}][CAPTCHA] Esperando... ${waited / 1000}s/${CAPTCHA_TIMEOUT_MS / 1000}s`);
     }
   }
 
-  if (passed) captchaResueltaAt = Date.now();
   return passed;
 }
 
-// ── Ir a formulario y aceptar términos ────────────────────────────────────
-async function irAFormulario(page: Page): Promise<void> {
+// ── Formulario ─────────────────────────────────────────────────────────────
+async function irAFormulario(page: Page, wid: number): Promise<void> {
   await page.goto(URL_SITE, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.locator('[id="aceptaOption:0"]').waitFor({ state: "visible", timeout: 10000 });
   await page.locator('[id="aceptaOption:0"]').click();
   await page.locator('[id="continuarBtn"]').waitFor({ state: "visible", timeout: 10000 });
   await page.locator('[id="continuarBtn"]').click();
   await page.locator("#cedulaInput").waitFor({ state: "visible", timeout: 15000 });
-  console.log("[NAV] Formulario listo.");
+  console.log(`[W${wid}][NAV] Formulario listo.`);
 }
 
-// ── Parser de resultado ───────────────────────────────────────────────────
+// ── Parser de resultado ────────────────────────────────────────────────────
 interface DatosConsulta {
   cedula_consultada: string;
   nombre: string | null;
@@ -352,14 +347,8 @@ async function parsearPagina(page: Page, cedula: string): Promise<{ datos: Datos
   }
 
   const texto = extraido.texto;
-
-  // Parseo robusto desde el texto: NO depende de la posición de los <b>, que se
-  // corre cuando el resultado no trae nombre (p.ej. cédula sin registro).
   const nombreMatch = texto.match(/Apellidos y Nombres:\s*(.+)/i);
   const nombre = nombreMatch ? nombreMatch[1].trim() : null;
-
-  // Línea de resultado: la primera que menciona "ASUNTOS PENDIENTES" y NO forma
-  // parte del descargo legal (que repite la frase entre comillas).
   const estadoLinea = texto
     .split("\n")
     .map(l => l.trim())
@@ -369,63 +358,66 @@ async function parsearPagina(page: Page, cedula: string): Promise<{ datos: Datos
   const tiene_antecedentes = /ASUNTOS PENDIENTES/i.test(estado) && !sinPendientes;
 
   return {
-    datos: {
-      cedula_consultada: cedula,
-      nombre,
-      tiene_antecedentes,
-      estado,
-      fecha_consulta: extraido.fecha_consulta,
-      hora_consulta: extraido.hora_consulta,
-    },
+    datos: { cedula_consultada: cedula, nombre, tiene_antecedentes, estado, fecha_consulta: extraido.fecha_consulta, hora_consulta: extraido.hora_consulta },
     resultado_raw: texto,
   };
 }
 
-// ── Consulta individual ───────────────────────────────────────────────────
-async function ejecutarConsulta(cedula: string, tipo: string = "cc"): Promise<{ cedula: string; tipo: string; datos: DatosConsulta; resultado_raw: string; url: string; screenshot_url: string }> {
-  const page = mainPage!;
+// ── Consulta individual (por worker) ──────────────────────────────────────
+async function ejecutarConsulta(
+  worker: WorkerState,
+  cedula: string,
+  tipo: string = "cc"
+): Promise<{ cedula: string; tipo: string; datos: DatosConsulta; resultado_raw: string; url: string; screenshot_url: string }> {
+  const { id: wid, page } = worker;
 
-  // Esperar goBack de consulta anterior antes de empezar
-  await goBackPending;
+  await worker.goBackPending;
 
-  // Verificar si ya estamos en el formulario con token vivo (evitar goto innecesario)
-  const tokenAge = Date.now() - captchaResueltaAt;
-  const tokenFresco = captchaResueltaAt > 0 && tokenAge < 110_000;
+  const tokenAge = Date.now() - worker.captchaResueltaAt;
+  const tokenFresco = worker.captchaResueltaAt > 0 && tokenAge < 110_000;
   let enFormulario = false;
 
   if (tokenFresco) {
     enFormulario = await page.locator("#cedulaInput").isVisible({ timeout: 2000 }).catch(() => false);
-    if (enFormulario) console.log(`[CAPTCHA] Token fresco (${Math.round(tokenAge / 1000)}s) — reutilizando sesión.`);
+    if (enFormulario) console.log(`[W${wid}][CAPTCHA] Token fresco (${Math.round(tokenAge / 1000)}s) — reutilizando.`);
   }
 
   if (!enFormulario) {
-    await irAFormulario(page);
+    await irAFormulario(page, wid);
   }
 
   await page.locator("#cedulaTipo").selectOption(tipo);
   await page.locator("#cedulaInput").fill(cedula);
-  console.log(`[CONSULTA] ${tipo.toUpperCase()} ${cedula}`);
+  console.log(`[W${wid}][CONSULTA] ${tipo.toUpperCase()} ${cedula}`);
 
-  // Captcha — solo resolver si el token no está activo
   let captchaOk = false;
   if (enFormulario && tokenFresco) {
     captchaOk = await rcResuelto(page);
-    if (captchaOk) console.log(`[CAPTCHA] Token reutilizado OK.`);
+    if (captchaOk) console.log(`[W${wid}][CAPTCHA] Token reutilizado OK.`);
   }
   if (!captchaOk) {
-    captchaOk = await resolverCaptcha(page);
+    await acquireCaptchaMutex();
+    try {
+      // Recheck tras obtener mutex — otro worker pudo haber resuelto mientras esperábamos
+      captchaOk = await rcResuelto(page);
+      if (!captchaOk) {
+        captchaOk = await resolverCaptcha(page, wid);
+        if (captchaOk) worker.captchaResueltaAt = Date.now();
+      }
+    } finally {
+      releaseCaptchaMutex();
+    }
   }
   if (!captchaOk) throw new Error("reCAPTCHA no resuelto dentro del timeout.");
 
-  // Enviar formulario
   await page.locator("#j_idt17").click();
   await page.waitForLoadState("networkidle", { timeout: 20000 }).catch(() => {});
 
   const url = page.url();
   const { datos, resultado_raw } = await parsearPagina(page, cedula);
-  console.log(`[CONSULTA] OK — ${datos.nombre ?? "?"} | ${datos.estado}`);
+  console.log(`[W${wid}][CONSULTA] OK — ${datos.nombre ?? "?"} | ${datos.estado}`);
 
-  // Screenshot — captura completa vía CDP (ancho y alto real del documento)
+  // Screenshot completo
   await page.locator("#form\\:mensajeCiudadano").waitFor({ state: "visible", timeout: 10000 }).catch(() => {});
   await page.evaluate(() => window.scrollTo(0, 0));
   await esperar(300);
@@ -436,9 +428,7 @@ async function ejecutarConsulta(cedula: string, tipo: string = "cc"): Promise<{ 
       w: Math.max(document.documentElement.scrollWidth, document.body?.scrollWidth ?? 0),
       h: Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0),
     }));
-    const W = Math.max(dims.w, 1280);
-    const H = Math.min(dims.h, 8000);
-    await page.setViewportSize({ width: W, height: H });
+    await page.setViewportSize({ width: Math.max(dims.w, 1280), height: Math.min(dims.h, 8000) });
     await esperar(400);
     await page.screenshot({ path: screenshotPath });
     await page.setViewportSize({ width: 1280, height: 800 });
@@ -446,18 +436,14 @@ async function ejecutarConsulta(cedula: string, tipo: string = "cc"): Promise<{ 
     await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => {});
   }
   const screenshot_url = `${BASE_URL}/screenshot/${screenshotFile}`;
-  console.log(`[SCREENSHOT] ${screenshot_url}`);
+  console.log(`[W${wid}][SCREENSHOT] ${screenshot_url}`);
 
-  // goBack en background — respuesta HTTP se envía inmediatamente
-  goBackPending = page.goBack({ waitUntil: "domcontentloaded", timeout: 10000 }).then(() => {}).catch(() => {});
+  worker.goBackPending = page.goBack({ waitUntil: "domcontentloaded", timeout: 10000 }).then(() => {}).catch(() => {});
 
   return { cedula, tipo, datos, resultado_raw, url, screenshot_url };
 }
 
-// goBack en background — se completa antes de que empiece la siguiente consulta
-let goBackPending: Promise<void> = Promise.resolve();
-
-// ── Cola serializada ───────────────────────────────────────────────────────
+// ── Cola ───────────────────────────────────────────────────────────────────
 interface QueueItem {
   cedula: string;
   tipo: string;
@@ -465,32 +451,47 @@ interface QueueItem {
   reject: (e: any) => void;
 }
 const cola: QueueItem[] = [];
-let procesando = false;
-
-async function procesarCola() {
-  if (procesando || cola.length === 0) return;
-  procesando = true;
-  const item = cola.shift()!;
-  try {
-    let result = await ejecutarConsulta(item.cedula, item.tipo);
-    if (result.datos.estado === "NO DETERMINADO") {
-      console.log(`[RETRY] Resultado NO DETERMINADO — reintentando...`);
-      await new Promise(r => setTimeout(r, 3000));
-      result = await ejecutarConsulta(item.cedula, item.tipo);
-    }
-    item.resolve(result);
-  } catch (e) {
-    item.reject(e);
-  } finally {
-    procesando = false;
-    procesarCola();
-  }
-}
 
 function encolarConsulta(cedula: string, tipo: string): Promise<any> {
   return new Promise((resolve, reject) => {
     cola.push({ cedula, tipo, resolve, reject });
-    procesarCola();
+  });
+}
+
+// ── Mutex CAPTCHA — solo 1 worker resuelve CAPTCHA a la vez ───────────────
+let captchaMutexFree = true;
+async function acquireCaptchaMutex(): Promise<void> {
+  while (!captchaMutexFree) await esperar(500);
+  captchaMutexFree = false;
+}
+function releaseCaptchaMutex(): void { captchaMutexFree = true; }
+
+// ── Worker loop ────────────────────────────────────────────────────────────
+function startWorker(worker: WorkerState): void {
+  const loop = async () => {
+    while (true) {
+      const item = cola.shift();
+      if (!item) { await esperar(100); continue; }
+      worker.busy = true;
+      try {
+        let result = await ejecutarConsulta(worker, item.cedula, item.tipo);
+        if (result.datos.estado === "NO DETERMINADO") {
+          console.log(`[W${worker.id}][RETRY] NO DETERMINADO — reintentando...`);
+          await esperar(3000);
+          result = await ejecutarConsulta(worker, item.cedula, item.tipo);
+        }
+        item.resolve(result);
+      } catch (e) {
+        item.reject(e);
+      } finally {
+        worker.busy = false;
+      }
+    }
+  };
+  loop().catch(e => {
+    console.error(`[W${worker.id}] Loop crashed: ${e.message} — reiniciando en 3s`);
+    worker.busy = false;
+    setTimeout(() => startWorker(worker), 3000);
   });
 }
 
@@ -514,7 +515,13 @@ function jsonResp(res: http.ServerResponse, status: number, data: any) {
 
 const server = http.createServer(async (req, res) => {
   if (req.method === "GET" && req.url === "/health") {
-    return jsonResp(res, 200, { ok: true, cdp: CDP_PORT, en_cola: cola.length, procesando });
+    return jsonResp(res, 200, {
+      ok: true,
+      cdp: CDP_PORT,
+      en_cola: cola.length,
+      workers: workers.map(w => ({ id: w.id, busy: w.busy })),
+      procesando: workers.some(w => w.busy),
+    });
   }
 
   if (req.method === "GET" && req.url?.startsWith("/screenshot/")) {
@@ -563,7 +570,6 @@ const server = http.createServer(async (req, res) => {
       cedula: String(item.cedula ?? "").trim(),
       tipo: String(item.tipo ?? "cc").trim(),
     }));
-
     const invalidas = items.filter((i: any) => !i.cedula || !/^\d+$/.test(i.cedula));
     if (invalidas.length > 0)
       return jsonResp(res, 400, { ok: false, error: `Cédulas inválidas: ${invalidas.map((i: any) => i.cedula || "(vacía)").join(", ")}` });
@@ -594,26 +600,25 @@ const server = http.createServer(async (req, res) => {
     process.exit(1);
   }
 
-  // ── Keep-alive sesión JSF (cada 5 min, actúa si hay 25+ min de inactividad) ──
+  // Keep-alive JSF (25 min inactividad)
   const KEEPALIVE_INTERVAL = 5 * 60 * 1000;
   const KEEPALIVE_IDLE_THRESHOLD = 25 * 60 * 1000;
   setInterval(async () => {
-    if (procesando || cola.length > 0) return;
-    const idle = Date.now() - (captchaResueltaAt || Date.now());
+    if (workers.some(w => w.busy) || cola.length > 0) return;
+    const lastActivity = Math.max(...workers.map(w => w.captchaResueltaAt), 0);
+    const idle = Date.now() - (lastActivity || Date.now());
     if (idle < KEEPALIVE_IDLE_THRESHOLD) return;
+    const w = workers[0];
+    if (!w) return;
     try {
-      if (!mainPage) return;
-      await mainPage.evaluate(() =>
-        fetch("https://antecedentes.policia.gov.co:7005/WebJudicial/index.xhtml", {
-          method: "HEAD",
-          credentials: "include",
-        }).catch(() => {})
+      await w.page.evaluate(() =>
+        fetch("https://antecedentes.policia.gov.co:7005/WebJudicial/index.xhtml", { method: "HEAD", credentials: "include" }).catch(() => {})
       );
       console.log("[KEEPALIVE] Sesión JSF renovada.");
-    } catch (e) {}
+    } catch {}
   }, KEEPALIVE_INTERVAL);
 
-  // Limpiar screenshots con más de 10 minutos
+  // Limpiar screenshots > 10 min
   setInterval(() => {
     const cutoff = Date.now() - 10 * 60 * 1000;
     try {
@@ -625,8 +630,9 @@ const server = http.createServer(async (req, res) => {
   }, 60 * 1000);
 
   server.listen(SERVER_PORT, "127.0.0.1", () => {
-    console.log(`\nServidor activo en http://127.0.0.1:${SERVER_PORT}`);
-    console.log("  POST /consultar  { \"cedula\": \"1234567\", \"tipo\": \"cc\" }");
+    console.log(`\nServidor activo en http://127.0.0.1:${SERVER_PORT} — ${MAX_WORKERS} worker(s)`);
+    console.log("  POST /consultar        { \"cedula\": \"1234567\", \"tipo\": \"cc\" }");
+    console.log("  POST /consultar-lote   { \"cedulas\": [{\"cedula\": \"...\", \"tipo\": \"cc\"}] }");
     console.log("  GET  /health\n");
   });
 })();
