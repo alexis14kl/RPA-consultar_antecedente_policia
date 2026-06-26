@@ -1,2 +1,3 @@
-2026/06/26-03:07:31.482 122b Creating DB /home/droid/RPA-consultar_antecedente_policia/chrome-cdp-profile/Default/shared_proto_db since it was missing.
-2026/06/26-03:07:31.529 122b Reusing MANIFEST /home/droid/RPA-consultar_antecedente_policia/chrome-cdp-profile/Default/shared_proto_db/MANIFEST-000001
+2026/06/26-03:15:13.874 15d9 Reusing MANIFEST /home/droid/RPA-consultar_antecedente_policia/chrome-cdp-profile/Default/shared_proto_db/MANIFEST-000001
+2026/06/26-03:15:13.874 15d9 Recovering log #3
+2026/06/26-03:15:13.876 15d9 Reusing old log /home/droid/RPA-consultar_antecedente_policia/chrome-cdp-profile/Default/shared_proto_db/000003.log 

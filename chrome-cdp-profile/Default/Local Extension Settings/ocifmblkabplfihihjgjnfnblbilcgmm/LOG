@@ -1,2 +1,3 @@
-2026/06/26-03:07:32.159 122b Creating DB /home/droid/RPA-consultar_antecedente_policia/chrome-cdp-profile/Default/Local Extension Settings/ocifmblkabplfihihjgjnfnblbilcgmm since it was missing.
-2026/06/26-03:07:32.233 122b Reusing MANIFEST /home/droid/RPA-consultar_antecedente_policia/chrome-cdp-profile/Default/Local Extension Settings/ocifmblkabplfihihjgjnfnblbilcgmm/MANIFEST-000001
+2026/06/26-03:15:14.299 15d1 Reusing MANIFEST /home/droid/RPA-consultar_antecedente_policia/chrome-cdp-profile/Default/Local Extension Settings/ocifmblkabplfihihjgjnfnblbilcgmm/MANIFEST-000001
+2026/06/26-03:15:14.299 15d1 Recovering log #3
+2026/06/26-03:15:14.300 15d1 Reusing old log /home/droid/RPA-consultar_antecedente_policia/chrome-cdp-profile/Default/Local Extension Settings/ocifmblkabplfihihjgjnfnblbilcgmm/000003.log 
