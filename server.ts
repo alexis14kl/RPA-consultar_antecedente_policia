@@ -9,7 +9,10 @@ const SCRIPT_DIR = __dirname;
 const PYTHON = process.env.PYTHON ?? (process.platform === "win32" ? "python" : "python3");
 const CDP_PORT = 9223;
 const SERVER_PORT = parseInt(process.env.PORT ?? "3000");
-const CAPTCHA_TIMEOUT_MS = parseInt(process.env.CAPTCHA_TIMEOUT ?? "120") * 1000;
+const CAPTCHA_TIMEOUT_MS = parseInt(process.env.CAPTCHA_TIMEOUT ?? "35") * 1000;
+// Si Google bloqueó el audio (0 bytes) ya decidió no dar token → abort rápido en
+// vez de quemar el timeout completo esperando una resolución que no va a llegar.
+const CAPTCHA_TIMEOUT_BLOCKED_MS = parseInt(process.env.CAPTCHA_TIMEOUT_BLOCKED ?? "10") * 1000;
 const BASE_URL = process.env.BASE_URL ?? `http://localhost:${SERVER_PORT}`;
 const MAX_WORKERS = parseInt(process.env.WORKERS ?? "2");
 const SCREENSHOTS_DIR = path.join(SCRIPT_DIR, "screenshots");
@@ -149,6 +152,8 @@ async function getBframe(page: Page): Promise<Frame | null> {
 
 // ── Resolver reCAPTCHA ─────────────────────────────────────────────────────
 async function resolverCaptcha(page: Page, wid: number): Promise<boolean> {
+  await rateLimit.waitIfLimited(wid);   // backoff si Google viene bloqueando
+  let audioBloqueado = false;
   const recaptchaFrame = page.frameLocator('iframe[title="reCAPTCHA"]');
   await recaptchaFrame.locator("#recaptcha-anchor > div:first-child").waitFor({ state: "visible", timeout: 15000 });
   await recaptchaFrame.locator("#recaptcha-anchor > div:first-child").click();
@@ -277,6 +282,8 @@ async function resolverCaptcha(page: Page, wid: number): Promise<boolean> {
           }
         } else {
           console.log(`[W${wid}][CAPTCHA] Audio bloqueado por Google (0 bytes).`);
+          audioBloqueado = true;
+          rateLimit.record();
         }
         await cdpSession.detach().catch(() => {});
       }
@@ -289,9 +296,11 @@ async function resolverCaptcha(page: Page, wid: number): Promise<boolean> {
   }
 
   if (!passed) {
-    console.log(`[W${wid}][CAPTCHA] Esperando resolución... timeout ${CAPTCHA_TIMEOUT_MS / 1000}s`);
+    // Timeout dinámico: si Google bloqueó el audio, abort rápido; si no, el normal.
+    const maxWait = audioBloqueado ? CAPTCHA_TIMEOUT_BLOCKED_MS : CAPTCHA_TIMEOUT_MS;
+    console.log(`[W${wid}][CAPTCHA] Esperando resolución... timeout ${maxWait / 1000}s${audioBloqueado ? " (audio bloqueado — abort rápido)" : ""}`);
     let waited = 0;
-    while (waited < CAPTCHA_TIMEOUT_MS && !passed) {
+    while (waited < maxWait && !passed) {
       await esperar(2000);
       waited += 2000;
       if (await rcResuelto(page)) {
@@ -299,10 +308,11 @@ async function resolverCaptcha(page: Page, wid: number): Promise<boolean> {
         passed = true;
         break;
       }
-      if (waited % 20000 === 0) console.log(`[W${wid}][CAPTCHA] Esperando... ${waited / 1000}s/${CAPTCHA_TIMEOUT_MS / 1000}s`);
+      if (waited % 20000 === 0) console.log(`[W${wid}][CAPTCHA] Esperando... ${waited / 1000}s/${maxWait / 1000}s`);
     }
   }
 
+  if (passed) rateLimit.reset();   // éxito → resetea el contador de bloqueos
   return passed;
 }
 
@@ -476,6 +486,30 @@ function encolarLote(items: { cedula: string; tipo: string }[]): Promise<any>[] 
 }
 
 function colaTotal(): number { return workerQueues.reduce((s, q) => s + q.length, 0); }
+
+// ── Backoff de rate-limit — si Google bloquea el audio varias veces seguidas,
+// pausar para que su ventana se resetee (evita la cascada de bloqueos).
+const rateLimit = {
+  blocked: 0,
+  windowStart: 0,
+  WINDOW_MS: 60_000,
+  MAX_BLOCKED: 3,
+  PAUSE_MS: 30_000,
+  record() {
+    const now = Date.now();
+    if (now - this.windowStart > this.WINDOW_MS) { this.blocked = 0; this.windowStart = now; }
+    this.blocked++;
+  },
+  reset() { this.blocked = 0; },
+  async waitIfLimited(wid: number) {
+    if (this.blocked >= this.MAX_BLOCKED) {
+      console.log(`[W${wid}][RATE-LIMIT] ${this.blocked} bloqueos en <60s — pausando ${this.PAUSE_MS / 1000}s`);
+      await esperar(this.PAUSE_MS);
+      this.blocked = 0;
+      this.windowStart = Date.now();
+    }
+  },
+};
 
 // ── Mutex CAPTCHA — solo 1 worker resuelve CAPTCHA a la vez ───────────────
 let captchaMutexFree = true;
