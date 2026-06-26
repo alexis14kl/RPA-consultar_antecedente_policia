@@ -1,6 +1,6 @@
 import { chromium, Page, Browser, BrowserContext, Frame } from "playwright";
 import { execSync } from "child_process";
-import { writeFileSync } from "fs";
+import { writeFileSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync } from "fs";
 import * as http from "http";
 import * as path from "path";
 
@@ -12,6 +12,9 @@ const PYTHON = process.env.PYTHON ?? (process.platform === "win32" ? "python" : 
 const CDP_PORT = 9223;
 const SERVER_PORT = parseInt(process.env.PORT ?? "3000");
 const CAPTCHA_TIMEOUT_MS = parseInt(process.env.CAPTCHA_TIMEOUT ?? "120") * 1000;
+const BASE_URL = process.env.BASE_URL ?? `http://localhost:${SERVER_PORT}`;
+const SCREENSHOTS_DIR = path.join(SCRIPT_DIR, "screenshots");
+mkdirSync(SCREENSHOTS_DIR, { recursive: true });
 
 // ── Estado global del browser ──────────────────────────────────────────────
 let browser: Browser | null = null;
@@ -379,7 +382,7 @@ async function parsearPagina(page: Page, cedula: string): Promise<{ datos: Datos
 }
 
 // ── Consulta individual ───────────────────────────────────────────────────
-async function ejecutarConsulta(cedula: string, tipo: string = "cc"): Promise<{ cedula: string; tipo: string; datos: DatosConsulta; resultado_raw: string; url: string }> {
+async function ejecutarConsulta(cedula: string, tipo: string = "cc"): Promise<{ cedula: string; tipo: string; datos: DatosConsulta; resultado_raw: string; url: string; screenshot_url: string }> {
   const page = mainPage!;
 
   // Esperar goBack de consulta anterior antes de empezar
@@ -422,10 +425,33 @@ async function ejecutarConsulta(cedula: string, tipo: string = "cc"): Promise<{ 
   const { datos, resultado_raw } = await parsearPagina(page, cedula);
   console.log(`[CONSULTA] OK — ${datos.nombre ?? "?"} | ${datos.estado}`);
 
+  // Screenshot — captura completa vía CDP (ancho y alto real del documento)
+  await page.locator("#form\\:mensajeCiudadano").waitFor({ state: "visible", timeout: 10000 }).catch(() => {});
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await esperar(300);
+  const screenshotFile = `${Date.now()}_${cedula}.png`;
+  const screenshotPath = path.join(SCREENSHOTS_DIR, screenshotFile);
+  try {
+    const dims = await page.evaluate(() => ({
+      w: Math.max(document.documentElement.scrollWidth, document.body?.scrollWidth ?? 0),
+      h: Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0),
+    }));
+    const W = Math.max(dims.w, 1280);
+    const H = Math.min(dims.h, 8000);
+    await page.setViewportSize({ width: W, height: H });
+    await esperar(400);
+    await page.screenshot({ path: screenshotPath });
+    await page.setViewportSize({ width: 1280, height: 800 });
+  } catch {
+    await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => {});
+  }
+  const screenshot_url = `${BASE_URL}/screenshot/${screenshotFile}`;
+  console.log(`[SCREENSHOT] ${screenshot_url}`);
+
   // goBack en background — respuesta HTTP se envía inmediatamente
   goBackPending = page.goBack({ waitUntil: "domcontentloaded", timeout: 10000 }).then(() => {}).catch(() => {});
 
-  return { cedula, tipo, datos, resultado_raw, url };
+  return { cedula, tipo, datos, resultado_raw, url, screenshot_url };
 }
 
 // goBack en background — se completa antes de que empiece la siguiente consulta
@@ -491,6 +517,19 @@ const server = http.createServer(async (req, res) => {
     return jsonResp(res, 200, { ok: true, cdp: CDP_PORT, en_cola: cola.length, procesando });
   }
 
+  if (req.method === "GET" && req.url?.startsWith("/screenshot/")) {
+    const filename = path.basename(req.url.replace("/screenshot/", ""));
+    const filePath = path.join(SCREENSHOTS_DIR, filename);
+    try {
+      const data = readFileSync(filePath);
+      res.writeHead(200, { "Content-Type": "image/png", "Content-Length": data.length });
+      res.end(data);
+    } catch {
+      jsonResp(res, 404, { ok: false, error: "Screenshot no encontrado o expirado" });
+    }
+    return;
+  }
+
   if (req.method === "POST" && req.url === "/consultar") {
     let body: any;
     try { body = await parseBody(req); } catch (e) {
@@ -540,6 +579,17 @@ const server = http.createServer(async (req, res) => {
       console.log("[KEEPALIVE] Sesión JSF renovada.");
     } catch (e) {}
   }, KEEPALIVE_INTERVAL);
+
+  // Limpiar screenshots con más de 10 minutos
+  setInterval(() => {
+    const cutoff = Date.now() - 10 * 60 * 1000;
+    try {
+      for (const f of readdirSync(SCREENSHOTS_DIR)) {
+        const fp = path.join(SCREENSHOTS_DIR, f);
+        if (statSync(fp).mtimeMs < cutoff) unlinkSync(fp);
+      }
+    } catch {}
+  }, 60 * 1000);
 
   server.listen(SERVER_PORT, "127.0.0.1", () => {
     console.log(`\nServidor activo en http://127.0.0.1:${SERVER_PORT}`);
