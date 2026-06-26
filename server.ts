@@ -445,20 +445,33 @@ async function ejecutarConsulta(
   return { cedula, tipo, datos, resultado_raw, url, screenshot_url };
 }
 
-// ── Cola ───────────────────────────────────────────────────────────────────
+// ── Colas por worker ───────────────────────────────────────────────────────
 interface QueueItem {
   cedula: string;
   tipo: string;
   resolve: (v: any) => void;
   reject: (e: any) => void;
 }
-const cola: QueueItem[] = [];
+const workerQueues: QueueItem[][] = [];
 
 function encolarConsulta(cedula: string, tipo: string): Promise<any> {
   return new Promise((resolve, reject) => {
-    cola.push({ cedula, tipo, resolve, reject });
+    const wid = workerQueues.reduce((minIdx, q, i) =>
+      q.length < workerQueues[minIdx].length ? i : minIdx, 0);
+    workerQueues[wid].push({ cedula, tipo, resolve, reject });
   });
 }
+
+function encolarLote(items: { cedula: string; tipo: string }[]): Promise<any>[] {
+  return items.map((item, idx) =>
+    new Promise((resolve, reject) => {
+      const wid = idx % workerQueues.length;
+      workerQueues[wid].push({ cedula: item.cedula, tipo: item.tipo, resolve, reject });
+    })
+  );
+}
+
+function colaTotal(): number { return workerQueues.reduce((s, q) => s + q.length, 0); }
 
 // ── Mutex CAPTCHA — solo 1 worker resuelve CAPTCHA a la vez ───────────────
 let captchaMutexFree = true;
@@ -470,9 +483,10 @@ function releaseCaptchaMutex(): void { captchaMutexFree = true; }
 
 // ── Worker loop ────────────────────────────────────────────────────────────
 function startWorker(worker: WorkerState): void {
+  workerQueues[worker.id] = workerQueues[worker.id] ?? [];
   const loop = async () => {
     while (true) {
-      const item = cola.shift();
+      const item = workerQueues[worker.id].shift();
       if (!item) { await esperar(100); continue; }
       worker.busy = true;
       try {
@@ -520,8 +534,8 @@ const server = http.createServer(async (req, res) => {
     return jsonResp(res, 200, {
       ok: true,
       cdp: CDP_PORT,
-      en_cola: cola.length,
-      workers: workers.map(w => ({ id: w.id, busy: w.busy })),
+      en_cola: colaTotal(),
+      workers: workers.map(w => ({ id: w.id, busy: w.busy, en_cola: workerQueues[w.id]?.length ?? 0 })),
       procesando: workers.some(w => w.busy),
     });
   }
@@ -576,14 +590,15 @@ const server = http.createServer(async (req, res) => {
     if (invalidas.length > 0)
       return jsonResp(res, 400, { ok: false, error: `Cédulas inválidas: ${invalidas.map((i: any) => i.cedula || "(vacía)").join(", ")}` });
 
-    console.log(`[LOTE] ${items.length} consultas encoladas`);
+    console.log(`[LOTE] ${items.length} consultas distribuidas en ${Math.min(MAX_WORKERS, items.length)} workers`);
+    const promesas = encolarLote(items);
     const resultados = await Promise.all(
-      items.map(async (item: any) => {
+      promesas.map(async (p: Promise<any>, idx: number) => {
         try {
-          const r = await encolarConsulta(item.cedula, item.tipo);
+          const r = await p;
           return { ok: true, ...r };
         } catch (e: any) {
-          return { ok: false, cedula: item.cedula, error: e.message };
+          return { ok: false, cedula: items[idx].cedula, error: e.message };
         }
       })
     );
@@ -606,7 +621,7 @@ const server = http.createServer(async (req, res) => {
   const KEEPALIVE_INTERVAL = 5 * 60 * 1000;
   const KEEPALIVE_IDLE_THRESHOLD = 25 * 60 * 1000;
   setInterval(async () => {
-    if (workers.some(w => w.busy) || cola.length > 0) return;
+    if (workers.some(w => w.busy) || colaTotal() > 0) return;
     const lastActivity = Math.max(...workers.map(w => w.captchaResueltaAt), 0);
     const idle = Date.now() - (lastActivity || Date.now());
     if (idle < KEEPALIVE_IDLE_THRESHOLD) return;
