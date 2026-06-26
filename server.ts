@@ -15,6 +15,7 @@ const CAPTCHA_TIMEOUT_MS = parseInt(process.env.CAPTCHA_TIMEOUT ?? "35") * 1000;
 const CAPTCHA_TIMEOUT_BLOCKED_MS = parseInt(process.env.CAPTCHA_TIMEOUT_BLOCKED ?? "10") * 1000;
 const BASE_URL = process.env.BASE_URL ?? `http://localhost:${SERVER_PORT}`;
 const MAX_WORKERS = parseInt(process.env.WORKERS ?? "2");
+const LOTE_STREAM_MAX = parseInt(process.env.LOTE_STREAM_MAX ?? "200");
 const SCREENSHOTS_DIR = path.join(SCRIPT_DIR, "screenshots");
 mkdirSync(SCREENSHOTS_DIR, { recursive: true });
 
@@ -640,6 +641,48 @@ const server = http.createServer(async (req, res) => {
       })
     );
     return jsonResp(res, 200, { ok: true, total: resultados.length, resultados });
+  }
+
+  // ── Lote en STREAM (NDJSON) — para cargas masivas (Excel 100+) ──────────────
+  // Una línea JSON por resultado, apenas se completa. Mantiene la conexión viva
+  // → evita el timeout (~100s) de Cloudflare en lotes grandes → soporta 100+.
+  // Feed continuo al pool rodante (sin barrera por olas) = máxima velocidad; los
+  // resultados salen en stream en orden de finalización. El cliente lee línea a línea.
+  if (req.method === "POST" && req.url === "/consultar-lote-stream") {
+    let body: any;
+    try { body = await parseBody(req); } catch (e) {
+      return jsonResp(res, 400, { ok: false, error: "JSON inválido" });
+    }
+    if (!Array.isArray(body.cedulas) || body.cedulas.length === 0)
+      return jsonResp(res, 400, { ok: false, error: "cedulas debe ser un array no vacío" });
+    if (body.cedulas.length > LOTE_STREAM_MAX)
+      return jsonResp(res, 400, { ok: false, error: `máximo ${LOTE_STREAM_MAX} cédulas por lote` });
+
+    const items = body.cedulas.map((item: any) => ({
+      cedula: String(item.cedula ?? "").trim(),
+      tipo: String(item.tipo ?? "cc").trim(),
+    }));
+    const invalidas = items.filter((i: any) => !i.cedula || !/^\d+$/.test(i.cedula));
+    if (invalidas.length > 0)
+      return jsonResp(res, 400, { ok: false, error: `Cédulas inválidas: ${invalidas.map((i: any) => i.cedula || "(vacía)").join(", ")}` });
+
+    res.writeHead(200, {
+      "Content-Type": "application/x-ndjson; charset=utf-8",
+      "Cache-Control": "no-cache",
+      "X-Accel-Buffering": "no",   // evita buffering de proxies
+    });
+    const write = (obj: any) => { if (!res.writableEnded) res.write(JSON.stringify(obj) + "\n"); };
+    console.log(`[LOTE-STREAM] ${items.length} cédulas — streaming por el pool (${MAX_WORKERS} workers)`);
+    write({ event: "start", total: items.length, workers: MAX_WORKERS });
+
+    let oks = 0;
+    await Promise.all(items.map((item: any, idx: number) =>
+      encolarConsulta(item.cedula, item.tipo)
+        .then((r: any) => { oks++; write({ idx, ok: true, ...r }); })
+        .catch((e: any) => { write({ idx, ok: false, cedula: item.cedula, error: e.message }); })
+    ));
+    if (!res.writableEnded) res.end(JSON.stringify({ event: "done", total: items.length, ok: oks }) + "\n");
+    return;
   }
 
   jsonResp(res, 404, { ok: false, error: "Ruta no encontrada" });
