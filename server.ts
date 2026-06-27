@@ -606,11 +606,11 @@ function releaseCaptchaMutex(): void { captchaMutexFree = true; }
 
 // ── Worker loop ────────────────────────────────────────────────────────────
 function startWorker(worker: WorkerState): void {
-  let lastKeepaliveAt = 0;
-  let lastConsultaAt  = 0;         // última consulta real (no warmup)
-  const KEEPALIVE_MS  = 18_000;   // ping JSF cada 18s (timeout del servidor ~30s)
-  const REWARM_MS     = 95_000;   // re-solver CAPTCHA antes de que expire el token (110s)
-  const REWARM_VENTANA_MS = 300_000; // solo rewarm si hubo consulta real en los últimos 5 min
+  let lastKeepaliveAt  = 0;
+  let lastConsultaAt   = 0;   // última consulta real (no warmup)
+  let rewarmPendiente  = false; // permite solo 1 rewarm por consulta
+  const KEEPALIVE_MS   = 18_000;   // ping JSF cada 18s (timeout del servidor ~30s)
+  const REWARM_MS      = 95_000;   // re-solver CAPTCHA antes de que expire el token (110s)
 
   const loop = async () => {
     while (true) {
@@ -623,9 +623,9 @@ function startWorker(worker: WorkerState): void {
         if (worker.captchaResueltaAt > 0 && Date.now() - lastKeepaliveAt > KEEPALIVE_MS) {
           lastKeepaliveAt = Date.now();
           const tokenAge = Date.now() - worker.captchaResueltaAt;
-          const idleHaceRato = Date.now() - lastConsultaAt > REWARM_VENTANA_MS;
-          if (tokenAge > REWARM_MS && !hayTrabajo && !idleHaceRato) {
-            // Token próximo a expirar: re-resolver CAPTCHA.
+          if (tokenAge > REWARM_MS && !hayTrabajo && rewarmPendiente) {
+            rewarmPendiente = false;
+            // Token próximo a expirar: re-resolver CAPTCHA (solo 1 vez por consulta).
             // Si el formulario sigue visible (sesión JSF activa), resolver sin
             // crear una vista nueva (evita quemar el límite de ~15 vistas/sesión).
             // Solo hacer irAFormulario si la sesión ya expiró.
@@ -671,7 +671,8 @@ function startWorker(worker: WorkerState): void {
           await esperar(3000);
           result = await ejecutarConsulta(worker, item.cedula, item.tipo);
         }
-        lastConsultaAt = Date.now();
+        lastConsultaAt  = Date.now();
+        rewarmPendiente = true;
         item.resolve(result);
       } catch (e) {
         item.intentos = (item.intentos ?? 0) + 1;
