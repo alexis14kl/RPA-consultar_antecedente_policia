@@ -16,6 +16,9 @@ const CAPTCHA_TIMEOUT_BLOCKED_MS = parseInt(process.env.CAPTCHA_TIMEOUT_BLOCKED 
 const BASE_URL = process.env.BASE_URL ?? `http://localhost:${SERVER_PORT}`;
 const MAX_WORKERS = parseInt(process.env.WORKERS ?? "2");
 const LOTE_STREAM_MAX = parseInt(process.env.LOTE_STREAM_MAX ?? "200");
+// Reintentos ante fallo (ej. captcha no resuelto): reencola el item → otro worker
+// libre lo reintenta (failover). Capado para no quedar en loop si todo falla.
+const MAX_INTENTOS = parseInt(process.env.MAX_INTENTOS ?? "2");
 const SCREENSHOTS_DIR = path.join(SCRIPT_DIR, "screenshots");
 mkdirSync(SCREENSHOTS_DIR, { recursive: true });
 
@@ -466,24 +469,35 @@ interface QueueItem {
   tipo: string;
   resolve: (v: any) => void;
   reject: (e: any) => void;
+  intentos?: number;
 }
 // Cola COMPARTIDA (pool rodante): cualquier worker libre toma la siguiente
 // cédula. Reparte parejo solo — el worker que termina rápido jala más trabajo,
 // en vez del round-robin estático que dejaba a un worker ocioso.
 const cola: QueueItem[] = [];
 
+// Dedup de consultas EN VUELO: si la misma cédula+tipo ya se está procesando, se
+// reusa su misma promesa en vez de encolar otro job. Evita el doble-trabajo si el
+// cliente/proxy reenvía la request (timeout) → un documento = un solo worker.
+const enVuelo = new Map<string, Promise<any>>();
+
 function encolarConsulta(cedula: string, tipo: string): Promise<any> {
-  return new Promise((resolve, reject) => {
+  const key = `${tipo}:${cedula}`;
+  const existente = enVuelo.get(key);
+  if (existente) {
+    console.log(`[DEDUP] ${cedula} ya en vuelo — reusando resultado (no se re-encola)`);
+    return existente;
+  }
+  const p = new Promise((resolve, reject) => {
     cola.push({ cedula, tipo, resolve, reject });
   });
+  enVuelo.set(key, p);
+  p.then(() => enVuelo.delete(key), () => enVuelo.delete(key));
+  return p;
 }
 
 function encolarLote(items: { cedula: string; tipo: string }[]): Promise<any>[] {
-  return items.map(item =>
-    new Promise((resolve, reject) => {
-      cola.push({ cedula: item.cedula, tipo: item.tipo, resolve, reject });
-    })
-  );
+  return items.map(item => encolarConsulta(item.cedula, item.tipo));
 }
 
 function colaTotal(): number { return cola.length; }
@@ -536,7 +550,13 @@ function startWorker(worker: WorkerState): void {
         }
         item.resolve(result);
       } catch (e) {
-        item.reject(e);
+        item.intentos = (item.intentos ?? 0) + 1;
+        if (item.intentos < MAX_INTENTOS) {
+          console.log(`[W${worker.id}][RETRY] fallo intento ${item.intentos}/${MAX_INTENTOS} — reencolando (failover): ${(e as Error).message}`);
+          cola.push(item);   // failover: cualquier worker libre lo reintenta
+        } else {
+          item.reject(e);
+        }
       } finally {
         worker.busy = false;
       }
