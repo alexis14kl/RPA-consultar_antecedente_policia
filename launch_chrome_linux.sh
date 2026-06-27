@@ -32,6 +32,9 @@ $CHROME \
   --no-first-run \
   --no-default-browser-check \
   --disable-blink-features=AutomationControlled \
+  --disable-web-security \
+  --ignore-certificate-errors \
+  --disable-features=SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure,IsolateOrigins,site-per-process,BlockInsecurePrivateNetworkRequests,PrivacySandboxSettings4 \
   --load-extension="$(dirname "$0")/buster-ext" \
   "$URL" >/dev/null 2>&1 &
 
