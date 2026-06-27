@@ -597,10 +597,34 @@ function releaseCaptchaMutex(): void { captchaMutexFree = true; }
 
 // ── Worker loop ────────────────────────────────────────────────────────────
 function startWorker(worker: WorkerState): void {
+  let lastKeepaliveAt = 0;
+  const KEEPALIVE_MS  = 18_000;   // ping JSF cada 18s (timeout del servidor ~30s)
+  const REWARM_MS     = 95_000;   // re-solver CAPTCHA antes de que expire el token (110s)
+
   const loop = async () => {
     while (true) {
       const item = cola.shift();   // pool rodante: el worker libre toma la siguiente
-      if (!item) { await esperar(100); continue; }
+      if (!item) {
+        // Keepalive: solo cuando idle y ya hubo actividad (warmup o consulta previa).
+        // No afecta procesos en curso — si llega un item, el worker lo toma en el
+        // próximo ciclo (la cola lo retiene mientras dura el ping de ~1s).
+        if (worker.captchaResueltaAt > 0 && Date.now() - lastKeepaliveAt > KEEPALIVE_MS) {
+          lastKeepaliveAt = Date.now();
+          const tokenAge = Date.now() - worker.captchaResueltaAt;
+          if (tokenAge > REWARM_MS) {
+            // Token próximo a expirar: re-calentar completo (nav + CAPTCHA)
+            console.log(`[W${worker.id}][KEEPALIVE] Re-calentando (token ${Math.round(tokenAge / 1000)}s)...`);
+            await calentarWorker(worker).catch(() => {});
+          } else {
+            // Solo mantener sesión JSF viva con un fetch silencioso (sin navegar)
+            await worker.page.evaluate((url: string) =>
+              fetch(url, { credentials: "include", cache: "no-store" }).catch(() => {})
+            , URL_SITE).catch(() => {});
+          }
+        }
+        await esperar(100);
+        continue;
+      }
       worker.busy = true;
       try {
         let result = await ejecutarConsulta(worker, item.cedula, item.tipo);
