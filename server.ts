@@ -369,6 +369,16 @@ async function parsearPagina(page: Page, cedula: string): Promise<{ datos: Datos
   }
 
   const texto = extraido.texto;
+
+  // Respuesta definitiva del sistema de la policía: no se puede generar online.
+  // No reintentar — es una limitación del sistema, no un error transitorio.
+  if (/no puede ser generado/i.test(texto)) {
+    return {
+      datos: { cedula_consultada: cedula, nombre: null, tiene_antecedentes: false, estado: "CONSULTAR_PRESENCIALMENTE", fecha_consulta: extraido.fecha_consulta, hora_consulta: extraido.hora_consulta },
+      resultado_raw: texto,
+    };
+  }
+
   const nombreMatch = texto.match(/Apellidos y Nombres:\s*(.+)/i);
   const nombre = nombreMatch ? nombreMatch[1].trim() : null;
   const estadoLinea = texto
