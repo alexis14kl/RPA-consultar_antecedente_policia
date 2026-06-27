@@ -1,8 +1,8 @@
 @echo off
-title Antecedentes Policia - Consulta Automatica
+title Antecedentes Policia - RPA Server
 cd /d "%~dp0"
 
-echo [1/2] Lanzando Chrome con Profile 1...
+echo [1/2] Lanzando Chrome con Buster...
 powershell -ExecutionPolicy Bypass -File "%~dp0launch_chrome.ps1"
 if %errorlevel% NEQ 0 (
     echo ERROR: Chrome no pudo iniciar con CDP.
@@ -10,9 +10,11 @@ if %errorlevel% NEQ 0 (
     exit /b 1
 )
 
-echo [2/2] Ejecutando consulta automatica...
+echo [2/2] Iniciando servidor RPA...
 echo.
-npx ts-node browser.ts
+set PORT=4321
+set WORKERS=2
+npx tsx server.ts
 echo.
-echo === FIN ===
+echo === SERVIDOR DETENIDO ===
 pause
