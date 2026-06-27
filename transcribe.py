@@ -2,14 +2,11 @@ import sys
 import os
 import urllib.request
 
-# ffmpeg: en Windows winget no actualiza el PATH en la sesión activa, así que se
-# inyecta la ruta explícita. En Mac/Linux ffmpeg vive en el PATH (brew/apt), no
-# se toca nada. Override opcional con la variable de entorno FFMPEG_DIR.
-FFMPEG_DIR = os.environ.get(
-    "FFMPEG_DIR",
-    r"C:\Users\NyGsoft\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.1.1-full_build\bin",
-)
-if os.path.isdir(FFMPEG_DIR):
+# ffmpeg: en Mac/Linux vive en el PATH (brew/apt) y no se toca nada. En Windows,
+# si winget no actualizó el PATH de la sesión, exportá FFMPEG_DIR apuntando al
+# bin de ffmpeg.
+FFMPEG_DIR = os.environ.get("FFMPEG_DIR")
+if FFMPEG_DIR and os.path.isdir(FFMPEG_DIR):
     os.environ["PATH"] = FFMPEG_DIR + os.pathsep + os.environ.get("PATH", "")
 
 def download_audio(url: str, dest: str):
@@ -33,18 +30,6 @@ def transcribe_google(wav_path: str) -> str:
         audio_data = r.record(source)
     return r.recognize_google(audio_data, language="en-US").lower()
 
-def transcribe_whisper(mp3_path: str) -> str:
-    import whisper
-    model = whisper.load_model("base")
-    result = model.transcribe(
-        mp3_path,
-        language="en",
-        fp16=False,
-        condition_on_previous_text=False,
-        initial_prompt="The audio code is:",
-    )
-    return result["text"].strip().lower()
-
 def transcribe(url: str) -> str:
     tmp = "captcha_audio.mp3"
     download_audio(url, tmp)
@@ -59,11 +44,7 @@ def transcribe_file(mp3_path: str) -> str:
         return text
     except Exception as e1:
         print(f"Google STT falló: {e1}", file=sys.stderr)
-        try:
-            return transcribe_whisper(mp3_path)
-        except Exception as e2:
-            print(f"Whisper falló: {e2}", file=sys.stderr)
-            raise RuntimeError(f"Ambos STT fallaron. Google: {e1} | Whisper: {e2}")
+        raise RuntimeError(f"Transcripción falló (Google STT): {e1}")
 
 if __name__ == "__main__":
     if len(sys.argv) == 3 and sys.argv[1] == "file":
