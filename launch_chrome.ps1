@@ -1,70 +1,69 @@
 # Lanzador Windows — alineado con launch_chrome.sh (Mac) y launch_chrome_linux.sh.
-# Usa Chrome for Testing (o Chromium de Playwright) con --load-extension para cargar
-# Buster desde buster-ext/, igual que Mac y Linux.
 #
-# IMPORTANTE: Chrome stable (>=137) ignora --load-extension.
-# Por eso se detecta Chrome for Testing o el Chromium de Playwright.
-# Si no se encuentra, cae a Chrome stable (Buster debe estar instalado en el perfil).
+# Modo A — Chrome for Testing / Chromium de Playwright:
+#   Usa --load-extension=buster-ext/ y perfil dedicado chrome-cdp-profile/
+#
+# Modo B — Chrome stable (fallback):
+#   Chrome stable ignora --load-extension desde v137.
+#   Usa Profile 1 donde Buster ya debe estar instalado como extensión normal.
 
-$CDP_PORT  = 9223
-$URL       = "https://antecedentes.policia.gov.co:7005/WebJudicial/index.xhtml"
+$CDP_PORT   = 9223
+$URL        = "https://antecedentes.policia.gov.co:7005/WebJudicial/index.xhtml"
 $SCRIPT_DIR = $PSScriptRoot
-$USER_DATA  = "$SCRIPT_DIR\chrome-cdp-profile"
 $EXT_DIR    = "$SCRIPT_DIR\buster-ext"
 
 # ── Detectar Chrome for Testing o Chromium de Playwright ──────────────────
-function Find-Chromium {
-    # Chrome for Testing (descargado manualmente o con npx @puppeteer/browsers)
+function Find-ChromiumForTesting {
     $cands = @(
         "$SCRIPT_DIR\chrome-win64\chrome.exe",
-        "$SCRIPT_DIR\chrome-win\chrome.exe",
-        "$env:LOCALAPPDATA\ms-playwright\chromium-*\chrome-win\chrome.exe"
+        "$SCRIPT_DIR\chrome-win\chrome.exe"
     )
-    foreach ($pattern in $cands) {
-        $found = Get-Item $pattern -EA SilentlyContinue | Sort-Object Name | Select-Object -Last 1
-        if ($found) { return $found.FullName }
+    foreach ($p in $cands) {
+        if (Test-Path $p) { return $p }
     }
-    # Playwright cache
     $pwBase = "$env:LOCALAPPDATA\ms-playwright"
     if (Test-Path $pwBase) {
-        $pwChrome = Get-ChildItem "$pwBase\chromium-*\chrome-win\chrome.exe" -EA SilentlyContinue |
-                    Sort-Object FullName | Select-Object -Last 1
-        if ($pwChrome) { return $pwChrome.FullName }
+        $found = Get-ChildItem "$pwBase\chromium-*\chrome-win\chrome.exe" -EA SilentlyContinue |
+                 Sort-Object FullName | Select-Object -Last 1
+        if ($found) { return $found.FullName }
     }
-    # Fallback: Chrome stable (no soporta --load-extension desde v137)
-    $stable = "C:\Program Files\Google\Chrome\Application\chrome.exe"
-    if (Test-Path $stable) { return $stable }
     return $null
 }
 
-$CHROME = Find-Chromium
-if (-not $CHROME) {
+$CHROME_FT = Find-ChromiumForTesting
+$CHROME_STABLE = "C:\Program Files\Google\Chrome\Application\chrome.exe"
+
+if ($CHROME_FT) {
+    $CHROME    = $CHROME_FT
+    $USER_DATA = "$SCRIPT_DIR\chrome-cdp-profile"
+    $USE_EXT   = $true
+    Write-Host "Modo A — Chrome for Testing: $CHROME"
+} elseif (Test-Path $CHROME_STABLE) {
+    $CHROME    = $CHROME_STABLE
+    $USER_DATA = "$env:LOCALAPPDATA\Google\Chrome\User Data"
+    $PROFILE   = "Profile 1"
+    $USE_EXT   = $false
+    Write-Host "Modo B — Chrome stable (Buster debe estar instalado en Profile 1): $CHROME"
+    Write-Host "  Para usar --load-extension instala Chrome for Testing:"
+    Write-Host "    npx playwright install chromium"
+} else {
     Write-Host "ERROR: No se encontro Chrome for Testing ni Chrome stable."
     Write-Host "  Instala con:  npx playwright install chromium"
-    Write-Host "            o:  npx @puppeteer/browsers install chrome@stable"
     exit 1
 }
-Write-Host "Chromium: $CHROME"
 
-# ── Limpiar procesos y locks anteriores ───────────────────────────────────
+# ── Limpiar procesos y locks ───────────────────────────────────────────────
 Write-Host "[1] Limpiando procesos..."
-Get-Process | Where-Object { $_.MainWindowTitle -eq "" -and $_.ProcessName -match "chrome" } |
-    Stop-Process -Force -EA SilentlyContinue
+Get-Process chrome -EA SilentlyContinue | Stop-Process -Force -EA SilentlyContinue
 Start-Sleep -Seconds 2
 Remove-Item "$USER_DATA\Singleton*" -Force -EA SilentlyContinue
 
-# ── Preparar perfil dedicado ───────────────────────────────────────────────
+# ── Preparar perfil ────────────────────────────────────────────────────────
 Write-Host "[2] Preparando perfil..."
 New-Item -ItemType Directory -Force -Path $USER_DATA | Out-Null
 
-if (-not (Test-Path $EXT_DIR)) {
-    Write-Host "ERROR: No se encontro buster-ext en: $EXT_DIR"
-    exit 1
-}
-
-# ── Lanzar Chromium ───────────────────────────────────────────────────────
-Write-Host "[3] Lanzando Chromium con Buster (--load-extension)..."
-$args = @(
+# ── Construir flags ────────────────────────────────────────────────────────
+$chromeArgs = @(
     "--remote-debugging-address=127.0.0.1",
     "--remote-debugging-port=$CDP_PORT",
     "--remote-allow-origins=*",
@@ -75,13 +74,26 @@ $args = @(
     "--disable-web-security",
     "--ignore-certificate-errors",
     "--disable-features=SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure,IsolateOrigins,site-per-process,BlockInsecurePrivateNetworkRequests,PrivacySandboxSettings4",
-    "--disable-extensions-except=$EXT_DIR",
-    "--load-extension=$EXT_DIR",
     "--window-position=-2000,0",
-    "--window-size=1280,800",
-    $URL
+    "--window-size=1280,800"
 )
-Start-Process $CHROME -ArgumentList $args -WindowStyle Normal
+
+if ($USE_EXT) {
+    if (-not (Test-Path $EXT_DIR)) {
+        Write-Host "ERROR: No se encontro buster-ext en: $EXT_DIR"
+        exit 1
+    }
+    $chromeArgs += "--disable-extensions-except=$EXT_DIR"
+    $chromeArgs += "--load-extension=$EXT_DIR"
+    Write-Host "[3] Lanzando con --load-extension (Buster desde buster-ext/)..."
+} else {
+    $chromeArgs += "--profile-directory=$PROFILE"
+    $chromeArgs += "--disable-session-crashed-bubble"
+    Write-Host "[3] Lanzando con Profile 1 (Buster instalado en el perfil)..."
+}
+
+$chromeArgs += $URL
+Start-Process $CHROME -ArgumentList $chromeArgs -WindowStyle Normal
 
 # ── Esperar CDP ───────────────────────────────────────────────────────────
 Write-Host "[4] Esperando CDP..."
