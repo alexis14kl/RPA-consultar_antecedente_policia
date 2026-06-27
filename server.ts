@@ -617,10 +617,11 @@ function startWorker(worker: WorkerState): void {
         // Keepalive: solo cuando idle y ya hubo actividad (warmup o consulta previa).
         // No afecta procesos en curso — si llega un item, el worker lo toma en el
         // próximo ciclo (la cola lo retiene mientras dura el ping de ~1s).
+        const hayTrabajo = cola.length > 0 || workers.some(w => w.busy);
         if (worker.captchaResueltaAt > 0 && Date.now() - lastKeepaliveAt > KEEPALIVE_MS) {
           lastKeepaliveAt = Date.now();
           const tokenAge = Date.now() - worker.captchaResueltaAt;
-          if (tokenAge > REWARM_MS) {
+          if (tokenAge > REWARM_MS && !hayTrabajo) {
             // Token próximo a expirar: re-resolver CAPTCHA.
             // Si el formulario sigue visible (sesión JSF activa), resolver sin
             // crear una vista nueva (evita quemar el límite de ~15 vistas/sesión).
