@@ -642,9 +642,17 @@ function startWorker(worker: WorkerState): void {
               await calentarWorker(worker).catch(() => {});
             }
           } else {
-            // Solo mantener sesión JSF viva con un fetch silencioso (sin navegar)
+            // Solo mantener sesión JSF viva con un ping silencioso (sin navegar)
             await worker.page.evaluate((url: string) =>
-              fetch(url, { credentials: "include", cache: "no-store" }).catch(() => {})
+              fetch(url, {
+                method: "HEAD",
+                credentials: "include",
+                cache: "no-store",
+                headers: {
+                  "Faces-Request": "partial/ajax",
+                  "X-Requested-With": "XMLHttpRequest",
+                },
+              }).catch(() => {})
             , URL_SITE).catch(() => {});
           }
         }
