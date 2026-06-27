@@ -459,15 +459,18 @@ async function ejecutarConsulta(
     await irAFormulario(page, wid);
   }
 
-  await page.locator("#cedulaTipo").selectOption(tipo);
-  await page.locator("#cedulaInput").fill(cedula);
-  console.log(`[W${wid}][CONSULTA] ${tipo.toUpperCase()} ${cedula}`);
-
+  // Verificar CAPTCHA ANTES de llenar el formulario: el selectOption("#cedulaTipo")
+  // dispara un AJAX de JSF que resetea el widget reCAPTCHA, invalidando el token
+  // cacheado si la verificación se hace después del llenado.
   let captchaOk = false;
   if (enFormulario && tokenFresco) {
     captchaOk = await rcResuelto(page);
     if (captchaOk) console.log(`[W${wid}][CAPTCHA] Token reutilizado OK.`);
   }
+
+  await page.locator("#cedulaTipo").selectOption(tipo);
+  await page.locator("#cedulaInput").fill(cedula);
+  console.log(`[W${wid}][CONSULTA] ${tipo.toUpperCase()} ${cedula}`);
   if (!captchaOk) {
     await acquireCaptchaMutex();
     try {
