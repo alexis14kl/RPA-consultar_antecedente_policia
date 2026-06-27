@@ -96,6 +96,38 @@ async function rcResuelto(page: Page): Promise<boolean> {
   return false;
 }
 
+// ── Warm-up: calentar un worker antes de aceptar tráfico ───────────────────
+// Resuelve 1 captcha de prueba (sin enviar cédula) para: despertar el service
+// worker de Buster (MV3 arranca dormido → cold-start) y dejar un token cacheado
+// que la primera consulta real reusa. Si la página viene quemada, la reemplaza.
+async function calentarWorker(worker: WorkerState): Promise<void> {
+  for (let intento = 1; intento <= 2; intento++) {
+    try {
+      await irAFormulario(worker.page, worker.id);
+      await acquireCaptchaMutex();
+      let ok = false;
+      try { ok = await resolverCaptcha(worker.page, worker.id); }
+      finally { releaseCaptchaMutex(); }
+      if (ok) {
+        worker.captchaResueltaAt = Date.now();
+        console.log(`[W${worker.id}][WARMUP] Caliente ✓ — Buster despierto + token cacheado.`);
+        return;
+      }
+    } catch (e) {
+      console.log(`[W${worker.id}][WARMUP] intento ${intento} falló: ${(e as Error).message}`);
+    }
+    if (intento < 2) {
+      try {
+        const pNueva = await context!.newPage();
+        await worker.page.close().catch(() => {});
+        worker.page = pNueva;
+        console.log(`[W${worker.id}][WARMUP] Página quemada — reemplazada, reintentando...`);
+      } catch {}
+    }
+  }
+  console.log(`[W${worker.id}][WARMUP] No calentó (la primera consulta usará failover).`);
+}
+
 // ── Inicializar browser ────────────────────────────────────────────────────
 async function initBrowser(): Promise<void> {
   if (!(await cdpActivo(CDP_PORT))) {
@@ -141,6 +173,15 @@ async function initBrowser(): Promise<void> {
   });
 
   console.log(`Browser inicializado — ${MAX_WORKERS} worker(s) listos.`);
+
+  // Warm-up: dejar cada worker con Buster despierto + token cacheado, para que la
+  // primera consulta real arranque caliente (sin cold-start de Buster ni failover).
+  // Desactivable con WARMUP=0.
+  if (process.env.WARMUP !== "0") {
+    console.log("Calentando workers (Buster + token)...");
+    await Promise.all(workers.map(w => calentarWorker(w)));
+    console.log("Warm-up completo — workers calientes.");
+  }
 
   // Arrancar loops de workers
   for (const w of workers) {
