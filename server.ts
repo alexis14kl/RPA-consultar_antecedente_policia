@@ -403,6 +403,15 @@ async function parsearPagina(page: Page, cedula: string): Promise<{ datos: Datos
   });
 
   if (!extraido.tieneContainer) {
+    // ViewExpiredException de JSF: el servidor descartó la vista y redirigió a
+    // index o mostró una página de error. Lanzar excepción para que el worker
+    // reemplace la página y reintente, en vez de quedarse con NO DETERMINADO.
+    const url = page.url();
+    const esViewExpired = url.includes("index.xhtml") || url.includes("error") ||
+      /ViewExpired|La sesi[oó]n ha expirado|Session.*expired/i.test(extraido.texto);
+    if (esViewExpired) {
+      throw new Error(`ViewExpiredException — sesión JSF expirada (url: ${url.split("/").pop()})`);
+    }
     return {
       datos: { cedula_consultada: cedula, nombre: null, tiene_antecedentes: false, estado: "NO DETERMINADO", fecha_consulta: null, hora_consulta: null },
       resultado_raw: extraido.texto.trim(),
@@ -612,9 +621,26 @@ function startWorker(worker: WorkerState): void {
           lastKeepaliveAt = Date.now();
           const tokenAge = Date.now() - worker.captchaResueltaAt;
           if (tokenAge > REWARM_MS) {
-            // Token próximo a expirar: re-calentar completo (nav + CAPTCHA)
-            console.log(`[W${worker.id}][KEEPALIVE] Re-calentando (token ${Math.round(tokenAge / 1000)}s)...`);
-            await calentarWorker(worker).catch(() => {});
+            // Token próximo a expirar: re-resolver CAPTCHA.
+            // Si el formulario sigue visible (sesión JSF activa), resolver sin
+            // crear una vista nueva (evita quemar el límite de ~15 vistas/sesión).
+            // Solo hacer irAFormulario si la sesión ya expiró.
+            const formVisible = await worker.page.locator("#cedulaInput").isVisible({ timeout: 2000 }).catch(() => false);
+            if (formVisible) {
+              console.log(`[W${worker.id}][KEEPALIVE] Re-calentando CAPTCHA sin re-navegar (token ${Math.round(tokenAge / 1000)}s)...`);
+              await acquireCaptchaMutex();
+              let ok = false;
+              try { ok = await resolverCaptcha(worker.page, worker.id); } finally { releaseCaptchaMutex(); }
+              if (ok) {
+                worker.captchaResueltaAt = Date.now();
+                console.log(`[W${worker.id}][KEEPALIVE] Caliente ✓ (sin nueva vista JSF).`);
+              } else {
+                await calentarWorker(worker).catch(() => {});
+              }
+            } else {
+              console.log(`[W${worker.id}][KEEPALIVE] Sesión expirada — re-navegando...`);
+              await calentarWorker(worker).catch(() => {});
+            }
           } else {
             // Solo mantener sesión JSF viva con un fetch silencioso (sin navegar)
             await worker.page.evaluate((url: string) =>
