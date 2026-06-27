@@ -178,10 +178,17 @@ async function resolverCaptcha(page: Page, wid: number): Promise<boolean> {
 
   let bframe: Frame | null = null;
   if (!passed) {
-    bframe = await getBframe(page);
+    // Esperar que aparezca el bframe Y que Buster inyecte su botón (puede tardar ~12s)
+    let hasHolder = false;
+    for (let w = 0; w < 15 && !hasHolder; w++) {
+      await esperar(1000);
+      bframe = await getBframe(page);
+      if (bframe) {
+        hasHolder = (await bframe.locator(".help-button-holder").count().catch(() => 0)) > 0;
+      }
+    }
     if (bframe) {
       const holder = bframe.locator(".help-button-holder");
-      const hasHolder = (await holder.count().catch(() => 0)) > 0;
       if (hasHolder) {
         console.log(`[W${wid}][CAPTCHA] Clic en ícono Buster (.help-button-holder)...`);
         await holder.click({ force: true, timeout: 8000 }).catch((e) => console.log(`[W${wid}][CAPTCHA] click Buster:`, (e as Error).message));
@@ -553,6 +560,15 @@ function startWorker(worker: WorkerState): void {
         item.intentos = (item.intentos ?? 0) + 1;
         if (item.intentos < MAX_INTENTOS) {
           console.log(`[W${worker.id}][RETRY] fallo intento ${item.intentos}/${MAX_INTENTOS} — reencolando (failover): ${(e as Error).message}`);
+          // Página quemada (reCAPTCHA en estado de error): reemplazar por una fresca
+          try {
+            const pNueva = await context!.newPage();
+            await worker.page.close().catch(() => {});
+            worker.page = pNueva;
+            worker.captchaResueltaAt = 0;
+            worker.goBackPending = Promise.resolve();
+            console.log(`[W${worker.id}][RETRY] Página reemplazada por una fresca.`);
+          } catch {}
           cola.push(item);   // failover: cualquier worker libre lo reintenta
         } else {
           item.reject(e);
