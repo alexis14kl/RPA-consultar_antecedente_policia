@@ -31,6 +31,10 @@ Start-Process "C:\Program Files\Google\Chrome\Application\chrome.exe" -ArgumentL
     "--no-first-run",
     "--no-default-browser-check",
     "--disable-session-crashed-bubble",
+    "--disable-blink-features=AutomationControlled",
+    "--disable-web-security",
+    "--ignore-certificate-errors",
+    "--disable-features=SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure,IsolateOrigins,site-per-process,BlockInsecurePrivateNetworkRequests,PrivacySandboxSettings4",
     "--window-position=-2000,0",
     "--window-size=1280,800",
     "https://antecedentes.policia.gov.co:7005/WebJudicial/index.xhtml"

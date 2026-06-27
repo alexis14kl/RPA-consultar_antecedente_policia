@@ -68,6 +68,9 @@ echo "[3] Lanzando Chromium con Buster (--load-extension)..."
   --no-default-browser-check \
   --disable-session-crashed-bubble \
   --disable-blink-features=AutomationControlled \
+  --disable-web-security \
+  --ignore-certificate-errors \
+  --disable-features=SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure,IsolateOrigins,site-per-process,BlockInsecurePrivateNetworkRequests,PrivacySandboxSettings4 \
   --disable-extensions-except="$EXT_DIR" \
   --load-extension="$EXT_DIR" \
   --window-position=-2000,0 \
