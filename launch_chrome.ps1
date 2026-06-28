@@ -74,7 +74,6 @@ $chromeArgs = @(
     "--disable-web-security",
     "--ignore-certificate-errors",
     "--disable-features=SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure,IsolateOrigins,site-per-process,BlockInsecurePrivateNetworkRequests,PrivacySandboxSettings4",
-    "--window-position=-2000,0",
     "--window-size=1280,800"
 )
 
@@ -93,7 +92,7 @@ if ($USE_EXT) {
 }
 
 $chromeArgs += $URL
-Start-Process $CHROME -ArgumentList $chromeArgs -WindowStyle Normal
+Start-Process $CHROME -ArgumentList $chromeArgs -WindowStyle Minimized
 
 # ── Esperar CDP ───────────────────────────────────────────────────────────
 Write-Host "[4] Esperando CDP..."
