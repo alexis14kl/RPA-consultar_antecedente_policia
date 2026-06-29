@@ -450,13 +450,16 @@ async function ejecutarConsulta(
       throw new Error("Token del pool inválido al iniciar consulta");
     }
 
-    await page.locator("#cedulaTipo").selectOption(tipo);
-    await page.locator("#cedulaInput").fill(cedula);
-
-    // Verificar que el token sigue válido tras el AJAX de selectOption
-    if (!await rcResuelto(page)) {
-      throw new Error("Token del pool expiró tras selectOption");
+    // Solo cambiar tipo si es distinto al default (cc) — evita AJAX innecesario
+    const currentTipo = await page.locator("#cedulaTipo").inputValue().catch(() => "cc");
+    if (currentTipo !== tipo) {
+      await page.locator("#cedulaTipo").selectOption(tipo);
+      if (!await rcResuelto(page)) {
+        throw new Error("Token del pool expiró tras selectOption");
+      }
     }
+
+    await page.locator("#cedulaInput").fill(cedula);
 
     await page.locator("#j_idt17").click();
     await Promise.race([
