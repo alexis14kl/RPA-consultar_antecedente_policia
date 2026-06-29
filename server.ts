@@ -2,7 +2,8 @@ import { chromium, Page, Browser, BrowserContext, Frame } from "playwright";
 import { execFile } from "child_process";
 import { promisify } from "util";
 const execFileAsync = promisify(execFile);
-import { writeFileSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync } from "fs";
+import { mkdirSync } from "fs";
+import { writeFile, readFile, readdir, stat, unlink } from "fs/promises";
 import * as http from "http";
 import * as path from "path";
 
@@ -246,7 +247,7 @@ async function resolverCaptcha(page: Page, label: string): Promise<boolean> {
 
         if (audioBuffer && audioBuffer.length > 100) {
           const mp3Path = path.join(SCRIPT_DIR, `captcha_audio_${label.replace(/[^a-z0-9]/gi, "_")}.mp3`);
-          writeFileSync(mp3Path, audioBuffer);
+          await writeFile(mp3Path, audioBuffer);
           try {
             const { stdout } = await execFileAsync(
               PYTHON,
@@ -663,7 +664,7 @@ const server = http.createServer(async (req, res) => {
     const filename = path.basename(req.url.replace("/screenshot/", ""));
     const filePath = path.join(SCREENSHOTS_DIR, filename);
     try {
-      const data = readFileSync(filePath);
+      const data = await readFile(filePath);
       res.writeHead(200, { "Content-Type": "image/png", "Content-Length": data.length, ...CORS_HEADERS });
       res.end(data);
     } catch {
@@ -778,12 +779,12 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Limpiar screenshots > 10 min
-  setInterval(() => {
+  setInterval(async () => {
     const cutoff = Date.now() - 10 * 60 * 1000;
     try {
-      for (const f of readdirSync(SCREENSHOTS_DIR)) {
+      for (const f of await readdir(SCREENSHOTS_DIR)) {
         const fp = path.join(SCREENSHOTS_DIR, f);
-        if (statSync(fp).mtimeMs < cutoff) unlinkSync(fp);
+        if ((await stat(fp)).mtimeMs < cutoff) await unlink(fp);
       }
     } catch {}
   }, 60 * 1000);
