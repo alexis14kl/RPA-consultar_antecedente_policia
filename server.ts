@@ -619,13 +619,25 @@ function parseBody(req: http.IncomingMessage): Promise<any> {
   });
 }
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
 function jsonResp(res: http.ServerResponse, status: number, data: any) {
   const body = JSON.stringify(data);
-  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Content-Length": Buffer.byteLength(body) });
+  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Content-Length": Buffer.byteLength(body), ...CORS_HEADERS });
   res.end(body);
 }
 
 const server = http.createServer(async (req, res) => {
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, CORS_HEADERS);
+    res.end();
+    return;
+  }
+
   if (req.method === "GET" && req.url === "/health") {
     return jsonResp(res, 200, {
       ok: true,
@@ -643,7 +655,7 @@ const server = http.createServer(async (req, res) => {
     const filePath = path.join(SCREENSHOTS_DIR, filename);
     try {
       const data = readFileSync(filePath);
-      res.writeHead(200, { "Content-Type": "image/png", "Content-Length": data.length });
+      res.writeHead(200, { "Content-Type": "image/png", "Content-Length": data.length, ...CORS_HEADERS });
       res.end(data);
     } catch {
       jsonResp(res, 404, { ok: false, error: "Screenshot no encontrado o expirado" });
@@ -721,6 +733,7 @@ const server = http.createServer(async (req, res) => {
       "Content-Type": "application/x-ndjson; charset=utf-8",
       "Cache-Control": "no-cache",
       "X-Accel-Buffering": "no",
+      ...CORS_HEADERS,
     });
     const write = (obj: any) => { if (!res.writableEnded) res.write(JSON.stringify(obj) + "\n"); };
     console.log(`[LOTE-STREAM] ${items.length} cédulas`);
