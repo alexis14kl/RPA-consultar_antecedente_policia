@@ -28,12 +28,18 @@ mkdirSync(SCREENSHOTS_DIR, { recursive: true });
 let browser: Browser | null = null;
 let context: BrowserContext | null = null;
 
-// ── Worker state ───────────────────────────────────────────────────────────
-interface WorkerState {
-  id: number;
-  busy: boolean;
+// ── Tracker de consultas activas (sin bloqueo — pool es el limitador) ──────
+class Semaphore {
+  private _active = 0;
+  private _waiting = 0;
+  trackStart() { this._active++; }
+  trackEnd()   { this._active = Math.max(0, this._active - 1); }
+  trackWait()  { this._waiting++; }
+  trackReady() { this._waiting = Math.max(0, this._waiting - 1); }
+  get active():  number { return this._active; }
+  get waiting(): number { return this._waiting; }
 }
-const workers: WorkerState[] = [];
+let semaphore: Semaphore;
 
 // ── Token pool — páginas con CAPTCHA ya resuelto, listas para usar ─────────
 interface PoolPage {
@@ -361,6 +367,7 @@ async function runPoolManager(sid: number = 0): Promise<void> {
 const TOKEN_MIN_BUFFER_MS = 3_000;
 
 async function getPoolPage(): Promise<PoolPage> {
+  let waited = false;
   while (true) {
     // Descartar tokens expirados o con menos de 3s restantes
     while (pool.length > 0 && Date.now() > pool[0].expiresAt) {
@@ -368,7 +375,11 @@ async function getPoolPage(): Promise<PoolPage> {
       await p.page.close().catch(() => {});
       console.log(`[POOL] Token casi expirado al dequeuar — descartado`);
     }
-    if (pool.length > 0) return pool.shift()!;
+    if (pool.length > 0) {
+      if (waited) semaphore.trackReady();
+      return pool.shift()!;
+    }
+    if (!waited) { semaphore.trackWait(); waited = true; }
     await esperar(300);
   }
 }
@@ -500,18 +511,42 @@ async function ejecutarConsulta(
   }
 }
 
-// ── Cola compartida ────────────────────────────────────────────────────────
-interface QueueItem {
-  cedula: string;
-  tipo: string;
-  resolve: (v: any) => void;
-  reject: (e: any) => void;
-  intentos?: number;
-}
-const cola: QueueItem[] = [];
+// ── Concurrencia controlada por semáforo ──────────────────────────────────
 const enVuelo = new Map<string, Promise<any>>();
-
 const CONSULTA_TIMEOUT_MS = parseInt(process.env.CONSULTA_TIMEOUT ?? "120") * 1000;
+let reqCounter = 0;
+
+async function ejecutarConReintentos(cedula: string, tipo: string): Promise<any> {
+  // Sin semáforo aquí — el pool es el limitador natural de concurrencia.
+  // Cada query espera su token libremente sin bloquear slots a otros.
+  const wid = ++reqCounter;
+  semaphore.trackStart();
+  try {
+    let intentos = 0;
+    while (true) {
+      try {
+        const result = await ejecutarConsulta(wid, cedula, tipo);
+        if (result.datos.estado === "NO DETERMINADO" && intentos < MAX_INTENTOS - 1) {
+          console.log(`[R${wid}][RETRY] NO DETERMINADO — reintentando...`);
+          await esperar(2000);
+          intentos++;
+          continue;
+        }
+        return result;
+      } catch (e) {
+        intentos++;
+        if (intentos < MAX_INTENTOS) {
+          console.log(`[R${wid}][RETRY] fallo intento ${intentos}/${MAX_INTENTOS}: ${(e as Error).message}`);
+          await esperar(1000);
+        } else {
+          throw e;
+        }
+      }
+    }
+  } finally {
+    semaphore.trackEnd();
+  }
+}
 
 function encolarConsulta(cedula: string, tipo: string): Promise<any> {
   const key = `${tipo}:${cedula}`;
@@ -523,10 +558,7 @@ function encolarConsulta(cedula: string, tipo: string): Promise<any> {
   const timeout = new Promise<never>((_, reject) =>
     setTimeout(() => reject(new Error(`Timeout: consulta excedió ${CONSULTA_TIMEOUT_MS / 1000}s`)), CONSULTA_TIMEOUT_MS)
   );
-  const p = Promise.race([
-    new Promise((resolve, reject) => { cola.push({ cedula, tipo, resolve, reject }); }),
-    timeout,
-  ]);
+  const p = Promise.race([ejecutarConReintentos(cedula, tipo), timeout]);
   enVuelo.set(key, p);
   p.then(() => enVuelo.delete(key), () => enVuelo.delete(key));
   return p;
@@ -534,44 +566,6 @@ function encolarConsulta(cedula: string, tipo: string): Promise<any> {
 
 function encolarLote(items: { cedula: string; tipo: string }[]): Promise<any>[] {
   return items.map(item => encolarConsulta(item.cedula, item.tipo));
-}
-
-function colaTotal(): number { return cola.length; }
-
-// ── Worker loop ────────────────────────────────────────────────────────────
-function startWorker(worker: WorkerState): void {
-  const loop = async () => {
-    while (true) {
-      const item = cola.shift();
-      if (!item) { await esperar(100); continue; }
-
-      worker.busy = true;
-      try {
-        let result = await ejecutarConsulta(worker.id, item.cedula, item.tipo);
-        if (result.datos.estado === "NO DETERMINADO") {
-          console.log(`[W${worker.id}][RETRY] NO DETERMINADO — reintentando...`);
-          await esperar(2000);
-          result = await ejecutarConsulta(worker.id, item.cedula, item.tipo);
-        }
-        item.resolve(result);
-      } catch (e) {
-        item.intentos = (item.intentos ?? 0) + 1;
-        if (item.intentos < MAX_INTENTOS) {
-          console.log(`[W${worker.id}][RETRY] fallo intento ${item.intentos}/${MAX_INTENTOS} — reencolando: ${(e as Error).message}`);
-          cola.push(item);
-        } else {
-          item.reject(e);
-        }
-      } finally {
-        worker.busy = false;
-      }
-    }
-  };
-  loop().catch(e => {
-    console.error(`[W${worker.id}] Loop crashed: ${e.message} — reiniciando en 3s`);
-    worker.busy = false;
-    setTimeout(() => startWorker(worker), 3000);
-  });
 }
 
 // ── Inicializar browser ────────────────────────────────────────────────────
@@ -603,10 +597,7 @@ async function initBrowser(): Promise<void> {
     }
   });
 
-  // Crear workers
-  for (let i = 0; i < MAX_WORKERS; i++) {
-    workers.push({ id: i, busy: false });
-  }
+  semaphore = new Semaphore();
 
   // Arrancar solvers escalonados (5s entre cada uno para no saturar Google)
   for (let sid = 0; sid < POOL_SOLVERS; sid++) {
@@ -622,9 +613,7 @@ async function initBrowser(): Promise<void> {
   // Esperar al menos 1 token en el pool antes de aceptar tráfico
   console.log("Esperando primer token del pool...");
   while (pool.length === 0) await esperar(500);
-  console.log(`Pool listo — ${MAX_WORKERS} worker(s) arrancando.`);
-
-  for (const w of workers) startWorker(w);
+  console.log(`Pool listo — semáforo de ${MAX_WORKERS} slot(s) activo.`);
 }
 
 // ── Servidor HTTP ──────────────────────────────────────────────────────────
@@ -666,9 +655,9 @@ const server = http.createServer(async (req, res) => {
       cdp: CDP_PORT,
       pool: pool.length,
       pool_target: POOL_TARGET,
-      en_cola: colaTotal(),
-      workers: workers.map(w => ({ id: w.id, busy: w.busy })),
-      procesando: workers.some(w => w.busy),
+      activas: semaphore.active,
+      esperando: semaphore.waiting,
+      max_workers: MAX_WORKERS,
     });
   }
 
