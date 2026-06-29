@@ -619,6 +619,8 @@ function parseBody(req: http.IncomingMessage): Promise<any> {
   });
 }
 
+const TIPOS_VALIDOS = ["cc", "cx", "pa", "dp"];
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -672,6 +674,7 @@ const server = http.createServer(async (req, res) => {
     const tipo = String(body.tipo ?? "cc").trim();
     if (!cedula) return jsonResp(res, 400, { ok: false, error: "cedula requerida" });
     if (!/^\d+$/.test(cedula)) return jsonResp(res, 400, { ok: false, error: "cedula debe contener solo numeros" });
+    if (!TIPOS_VALIDOS.includes(tipo)) return jsonResp(res, 400, { ok: false, error: `tipo inválido — valores aceptados: ${TIPOS_VALIDOS.join(", ")}` });
 
     try {
       const result = await encolarConsulta(cedula, tipo);
@@ -699,6 +702,9 @@ const server = http.createServer(async (req, res) => {
     const invalidas = items.filter((i: any) => !i.cedula || !/^\d+$/.test(i.cedula));
     if (invalidas.length > 0)
       return jsonResp(res, 400, { ok: false, error: `Cédulas inválidas: ${invalidas.map((i: any) => i.cedula || "(vacía)").join(", ")}` });
+    const tiposInvalidos = items.filter((i: any) => !TIPOS_VALIDOS.includes(i.tipo));
+    if (tiposInvalidos.length > 0)
+      return jsonResp(res, 400, { ok: false, error: `Tipos inválidos: ${tiposInvalidos.map((i: any) => i.tipo).join(", ")} — valores aceptados: ${TIPOS_VALIDOS.join(", ")}` });
 
     console.log(`[LOTE] ${items.length} consultas`);
     const promesas = encolarLote(items);
@@ -728,6 +734,9 @@ const server = http.createServer(async (req, res) => {
     const invalidas = items.filter((i: any) => !i.cedula || !/^\d+$/.test(i.cedula));
     if (invalidas.length > 0)
       return jsonResp(res, 400, { ok: false, error: `Cédulas inválidas: ${invalidas.map((i: any) => i.cedula || "(vacía)").join(", ")}` });
+    const tiposInvalidos = items.filter((i: any) => !TIPOS_VALIDOS.includes(i.tipo));
+    if (tiposInvalidos.length > 0)
+      return jsonResp(res, 400, { ok: false, error: `Tipos inválidos: ${tiposInvalidos.map((i: any) => i.tipo).join(", ")} — valores aceptados: ${TIPOS_VALIDOS.join(", ")}` });
 
     res.writeHead(200, {
       "Content-Type": "application/x-ndjson; charset=utf-8",
