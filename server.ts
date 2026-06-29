@@ -356,13 +356,15 @@ async function runPoolManager(sid: number = 0): Promise<void> {
 }
 
 // ── Obtener página del pool (espera si está vacío) ─────────────────────────
+const TOKEN_MIN_BUFFER_MS = 3_000;
+
 async function getPoolPage(): Promise<PoolPage> {
   while (true) {
-    // Descartar expirados del frente
-    while (pool.length > 0 && Date.now() - pool[0].solvedAt > TOKEN_MAX_AGE_MS) {
+    // Descartar tokens expirados o con menos de 3s restantes
+    while (pool.length > 0 && Date.now() - pool[0].solvedAt > TOKEN_MAX_AGE_MS - TOKEN_MIN_BUFFER_MS) {
       const p = pool.shift()!;
       await p.page.close().catch(() => {});
-      console.log(`[POOL] Token expirado al dequeuar — descartado`);
+      console.log(`[POOL] Token casi expirado al dequeuar — descartado`);
     }
     if (pool.length > 0) return pool.shift()!;
     await esperar(300);
