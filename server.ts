@@ -771,8 +771,9 @@ const server = http.createServer(async (req, res) => {
 
   server.listen(SERVER_PORT, "127.0.0.1", () => {
     console.log(`\nServidor activo en http://127.0.0.1:${SERVER_PORT} — ${MAX_WORKERS} worker(s)`);
-    console.log("  POST /consultar        { \"cedula\": \"1234567\", \"tipo\": \"cc\" }");
-    console.log("  POST /consultar-lote   { \"cedulas\": [{\"cedula\": \"...\", \"tipo\": \"cc\"}] }");
+    console.log("  POST /consultar              { \"cedula\": \"1234567\", \"tipo\": \"cc\" }");
+    console.log("  POST /consultar-lote         { \"cedulas\": [{\"cedula\": \"...\", \"tipo\": \"cc\"}] }");
+    console.log("  POST /consultar-lote-stream  { \"cedulas\": [{\"cedula\": \"...\", \"tipo\": \"cc\"}] }  (NDJSON)");
     console.log("  GET  /health\n");
   });
 })();
