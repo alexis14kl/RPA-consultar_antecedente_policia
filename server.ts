@@ -369,15 +369,15 @@ const TOKEN_MIN_BUFFER_MS = 3_000;
 async function getPoolPage(): Promise<PoolPage> {
   let waited = false;
   while (true) {
-    // Descartar tokens expirados o con menos de 3s restantes
+    // Limpiar expirados del frente (los más viejos)
     while (pool.length > 0 && Date.now() > pool[0].expiresAt) {
       const p = pool.shift()!;
       await p.page.close().catch(() => {});
-      console.log(`[POOL] Token casi expirado al dequeuar — descartado`);
+      console.log(`[POOL] Token expirado descartado`);
     }
     if (pool.length > 0) {
       if (waited) semaphore.trackReady();
-      return pool.shift()!;
+      return pool.pop()!; // LIFO — toma el más reciente (fresco)
     }
     if (!waited) { semaphore.trackWait(); waited = true; }
     await esperar(300);
