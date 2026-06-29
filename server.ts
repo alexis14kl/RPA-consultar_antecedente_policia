@@ -1,5 +1,7 @@
 import { chromium, Page, Browser, BrowserContext, Frame } from "playwright";
-import { execSync } from "child_process";
+import { execFile } from "child_process";
+import { promisify } from "util";
+const execFileAsync = promisify(execFile);
 import { writeFileSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync } from "fs";
 import * as http from "http";
 import * as path from "path";
@@ -246,10 +248,12 @@ async function resolverCaptcha(page: Page, label: string): Promise<boolean> {
           const mp3Path = path.join(SCRIPT_DIR, `captcha_audio_${label.replace(/[^a-z0-9]/gi, "_")}.mp3`);
           writeFileSync(mp3Path, audioBuffer);
           try {
-            const texto = execSync(
-              `"${PYTHON}" "${path.join(SCRIPT_DIR, "transcribe.py")}" file "${mp3Path}"`,
+            const { stdout } = await execFileAsync(
+              PYTHON,
+              [path.join(SCRIPT_DIR, "transcribe.py"), "file", mp3Path],
               { encoding: "utf-8", timeout: 120000 }
-            ).trim();
+            );
+            const texto = stdout.trim();
             console.log(`[${label}][CAPTCHA] Transcripción:`, texto);
             if (texto.length > 0) {
               await bframe.locator("#audio-response").fill(texto);
