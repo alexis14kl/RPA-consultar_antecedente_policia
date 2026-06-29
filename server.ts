@@ -445,6 +445,11 @@ async function ejecutarConsulta(
   console.log(`[W${wid}][CONSULTA] ${tipo.toUpperCase()} ${cedula} — token del pool (${Math.round(tokenAge / 1000)}s)`);
 
   try {
+    // Verificar token antes de cualquier interacción — fail fast
+    if (!await rcResuelto(page)) {
+      throw new Error("Token del pool inválido al iniciar consulta");
+    }
+
     await page.locator("#cedulaTipo").selectOption(tipo);
     await page.locator("#cedulaInput").fill(cedula);
 
