@@ -10,15 +10,14 @@ const PYTHON = process.env.PYTHON ?? (process.platform === "win32" ? "python" : 
 const CDP_PORT = 9223;
 const SERVER_PORT = parseInt(process.env.PORT ?? "3000");
 const CAPTCHA_TIMEOUT_MS = parseInt(process.env.CAPTCHA_TIMEOUT ?? "35") * 1000;
-// Si Google bloqueó el audio (0 bytes) ya decidió no dar token → abort rápido en
-// vez de quemar el timeout completo esperando una resolución que no va a llegar.
 const CAPTCHA_TIMEOUT_BLOCKED_MS = parseInt(process.env.CAPTCHA_TIMEOUT_BLOCKED ?? "10") * 1000;
 const BASE_URL = process.env.BASE_URL ?? `http://localhost:${SERVER_PORT}`;
 const MAX_WORKERS = parseInt(process.env.WORKERS ?? "2");
 const LOTE_STREAM_MAX = parseInt(process.env.LOTE_STREAM_MAX ?? "200");
-// Reintentos ante fallo (ej. captcha no resuelto): reencola el item → otro worker
-// libre lo reintenta (failover). Capado para no quedar en loop si todo falla.
 const MAX_INTENTOS = parseInt(process.env.MAX_INTENTOS ?? "2");
+const POOL_TARGET = parseInt(process.env.POOL_TARGET ?? String(MAX_WORKERS * 2));
+const POOL_SOLVERS = parseInt(process.env.POOL_SOLVERS ?? "2");
+const TOKEN_MAX_AGE_MS = 100_000;
 const SCREENSHOTS_DIR = path.join(SCRIPT_DIR, "screenshots");
 mkdirSync(SCREENSHOTS_DIR, { recursive: true });
 
@@ -29,12 +28,17 @@ let context: BrowserContext | null = null;
 // ── Worker state ───────────────────────────────────────────────────────────
 interface WorkerState {
   id: number;
-  page: Page;
-  captchaResueltaAt: number;
-  goBackPending: Promise<void>;
   busy: boolean;
 }
 const workers: WorkerState[] = [];
+
+// ── Token pool — páginas con CAPTCHA ya resuelto, listas para usar ─────────
+interface PoolPage {
+  page: Page;
+  solvedAt: number;
+}
+const pool: PoolPage[] = [];
+let poolManagerRunning = false;
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function esperar(ms: number) {
@@ -61,7 +65,6 @@ async function asegurarPagina(port: number): Promise<void> {
     }).on("error", () => resolve([]));
   });
   if (targets.some((t) => t.type === "page")) return;
-  console.log("CDP sin pestañas — abriendo una nueva...");
   await new Promise<void>((resolve) => {
     const req = http.request(
       `http://127.0.0.1:${port}/json/new?${URL_SITE}`,
@@ -96,130 +99,59 @@ async function rcResuelto(page: Page): Promise<boolean> {
   return false;
 }
 
-// ── Warm-up: calentar un worker antes de aceptar tráfico ───────────────────
-// Resuelve 1 captcha de prueba (sin enviar cédula) para: despertar el service
-// worker de Buster (MV3 arranca dormido → cold-start) y dejar un token cacheado
-// que la primera consulta real reusa. Si la página viene quemada, la reemplaza.
-async function calentarWorker(worker: WorkerState): Promise<void> {
-  for (let intento = 1; intento <= 2; intento++) {
-    try {
-      await irAFormulario(worker.page, worker.id);
-      await acquireCaptchaMutex();
-      let ok = false;
-      try { ok = await resolverCaptcha(worker.page, worker.id); }
-      finally { releaseCaptchaMutex(); }
-      if (ok) {
-        worker.captchaResueltaAt = Date.now();
-        console.log(`[W${worker.id}][WARMUP] Caliente ✓ — Buster despierto + token cacheado.`);
-        return;
-      }
-    } catch (e) {
-      console.log(`[W${worker.id}][WARMUP] intento ${intento} falló: ${(e as Error).message}`);
-    }
-    if (intento < 2) {
-      try {
-        const pNueva = await context!.newPage();
-        await worker.page.close().catch(() => {});
-        worker.page = pNueva;
-        console.log(`[W${worker.id}][WARMUP] Página quemada — reemplazada, reintentando...`);
-      } catch {}
-    }
-  }
-  console.log(`[W${worker.id}][WARMUP] No calentó (la primera consulta usará failover).`);
-}
-
-// ── Inicializar browser ────────────────────────────────────────────────────
-async function initBrowser(): Promise<void> {
-  if (!(await cdpActivo(CDP_PORT))) {
-    throw new Error(`CDP no activo en puerto ${CDP_PORT}.`);
-  }
-  await asegurarPagina(CDP_PORT);
-  console.log("CDP activo — conectando browser...");
-  browser = await chromium.connectOverCDP(`http://127.0.0.1:${CDP_PORT}`);
-  const ctxList = browser.contexts();
-  context = ctxList.length > 0 ? ctxList[0] : await browser.newContext();
-
-  await context.addInitScript(() => {
-    Object.defineProperty(navigator, "webdriver", { get: () => undefined });
-    delete (window as any).cdc_adoQpoasnfa76pfcZLmcfl_Array;
-    delete (window as any).cdc_adoQpoasnfa76pfcZLmcfl_Promise;
-    delete (window as any).cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
-    window.open = () => null;
-  });
-
-  // Worker 0 — reutilizar página existente
-  const existingPages = context.pages();
-  const page0 = existingPages.find(p => p.url().includes("antecedentes.policia.gov.co")) ?? existingPages[0] ?? await context.newPage();
-  for (const p of existingPages) {
-    if (p !== page0) await p.close().catch(() => {});
-  }
-  workers.push({ id: 0, page: page0, captchaResueltaAt: 0, goBackPending: Promise.resolve(), busy: false });
-
-  // Workers 1..N — páginas nuevas, pre-navegar a URL para no quedar en about:blank
-  for (let i = 1; i < MAX_WORKERS; i++) {
-    const p = await context.newPage();
-    p.goto(URL_SITE, { waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => {});
-    workers.push({ id: i, page: p, captchaResueltaAt: 0, goBackPending: Promise.resolve(), busy: false });
-  }
-
-  // Cerrar tabs que extensiones abran DESPUÉS de crear nuestras páginas
-  const browserCdp = await browser.newBrowserCDPSession();
-  await browserCdp.send("Target.setDiscoverTargets", { discover: true });
-  browserCdp.on("Target.targetCreated", async (event: any) => {
-    const t = event.targetInfo;
-    if (t.type === "page" && t.url !== "about:blank" && !t.url.includes("antecedentes.policia.gov.co")) {
-      await browserCdp.send("Target.closeTarget", { targetId: t.targetId }).catch(() => {});
-    }
-  });
-
-  console.log(`Browser inicializado — ${MAX_WORKERS} worker(s) listos.`);
-
-  // Warm-up: dejar cada worker con Buster despierto + token cacheado, para que la
-  // primera consulta real arranque caliente (sin cold-start de Buster ni failover).
-  // Desactivable con WARMUP=0.
-  if (process.env.WARMUP !== "0") {
-    console.log("Calentando workers (Buster + token)...");
-    await Promise.all(workers.map(w => calentarWorker(w)));
-    console.log("Warm-up completo — workers calientes.");
-  }
-
-  // Arrancar loops de workers
-  for (const w of workers) {
-    startWorker(w);
-  }
-}
-
 async function getBframe(page: Page): Promise<Frame | null> {
   const h = await page.locator('iframe[src*="bframe"]').elementHandle().catch(() => null);
   if (!h) return null;
   return await h.contentFrame().catch(() => null);
 }
 
+// ── Backoff rate-limit Google ──────────────────────────────────────────────
+const rateLimit = {
+  blocked: 0,
+  windowStart: 0,
+  WINDOW_MS: 60_000,
+  MAX_BLOCKED: 3,
+  PAUSE_MS: 30_000,
+  record() {
+    const now = Date.now();
+    if (now - this.windowStart > this.WINDOW_MS) { this.blocked = 0; this.windowStart = now; }
+    this.blocked++;
+  },
+  reset() { this.blocked = 0; },
+  async waitIfLimited() {
+    if (this.blocked >= this.MAX_BLOCKED) {
+      console.log(`[POOL] ${this.blocked} bloqueos en <60s — pausando ${this.PAUSE_MS / 1000}s`);
+      await esperar(this.PAUSE_MS);
+      this.blocked = 0;
+      this.windowStart = Date.now();
+    }
+  },
+};
+
 // ── Resolver reCAPTCHA ─────────────────────────────────────────────────────
-async function resolverCaptcha(page: Page, wid: number): Promise<boolean> {
-  await rateLimit.waitIfLimited(wid);   // backoff si Google viene bloqueando
+async function resolverCaptcha(page: Page, label: string): Promise<boolean> {
+  await rateLimit.waitIfLimited();
   let audioBloqueado = false;
   const recaptchaFrame = page.frameLocator('iframe[title="reCAPTCHA"]');
   await recaptchaFrame.locator("#recaptcha-anchor > div:first-child").waitFor({ state: "visible", timeout: 15000 });
   await recaptchaFrame.locator("#recaptcha-anchor > div:first-child").click();
-  console.log(`[W${wid}][CAPTCHA] Checkbox clickeado...`);
+  console.log(`[${label}][CAPTCHA] Checkbox clickeado...`);
 
   let passed = false;
   for (let i = 0; i < 16 && !passed; i++) {
     await esperar(500);
-    if (await rcResuelto(page)) { console.log(`[W${wid}][CAPTCHA] Pasó sin challenge.`); passed = true; break; }
+    if (await rcResuelto(page)) { console.log(`[${label}][CAPTCHA] Pasó sin challenge.`); passed = true; break; }
     const bframeTemp = await getBframe(page);
     if (bframeTemp) {
       const hasChallenge = await bframeTemp.locator(
         "#rc-imageselect, #rc-audiochallenge, #recaptcha-audio-button, #solver-button"
       ).isVisible().catch(() => false);
-      if (hasChallenge) { console.log(`[W${wid}][CAPTCHA] Challenge detectado.`); break; }
+      if (hasChallenge) { console.log(`[${label}][CAPTCHA] Challenge detectado.`); break; }
     }
   }
 
   let bframe: Frame | null = null;
   if (!passed) {
-    // Esperar que aparezca el bframe Y que Buster inyecte su botón (puede tardar ~12s)
     let hasHolder = false;
     for (let w = 0; w < 15 && !hasHolder; w++) {
       await esperar(1000);
@@ -231,15 +163,13 @@ async function resolverCaptcha(page: Page, wid: number): Promise<boolean> {
     if (bframe) {
       const holder = bframe.locator(".help-button-holder");
       if (hasHolder) {
-        console.log(`[W${wid}][CAPTCHA] Clic en ícono Buster (.help-button-holder)...`);
-        await holder.click({ force: true, timeout: 8000 }).catch((e) => console.log(`[W${wid}][CAPTCHA] click Buster:`, (e as Error).message));
+        console.log(`[${label}][CAPTCHA] Clic en ícono Buster...`);
+        await holder.click({ force: true, timeout: 8000 }).catch((e) => console.log(`[${label}][CAPTCHA] click Buster:`, (e as Error).message));
         for (let j = 0; j < 25 && !passed; j++) {
           await esperar(1000);
-          if (await rcResuelto(page)) { console.log(`[W${wid}][CAPTCHA] Buster resolvió.`); passed = true; }
-          if (j % 10 === 9) console.log(`[W${wid}][CAPTCHA] Buster trabajando... (${j + 1}s)`);
+          if (await rcResuelto(page)) { console.log(`[${label}][CAPTCHA] Buster resolvió.`); passed = true; }
+          if (j % 10 === 9) console.log(`[${label}][CAPTCHA] Buster trabajando... (${j + 1}s)`);
         }
-      } else {
-        console.log(`[W${wid}][CAPTCHA] .help-button-holder no presente — Buster no disponible.`);
       }
     }
   }
@@ -251,10 +181,8 @@ async function resolverCaptcha(page: Page, wid: number): Promise<boolean> {
       const hasAudioBtn = await audioBtn.isVisible().catch(() => false);
       if (hasAudioBtn) {
         const disabled = await audioBtn.evaluate((el: any) => el.disabled || el.classList.contains("rc-button-disabled")).catch(() => false);
-        if (disabled) {
-          console.log(`[W${wid}][CAPTCHA] Audio button deshabilitado (rate limit Google).`);
-        } else {
-          console.log(`[W${wid}][CAPTCHA] Cambiando a audio challenge...`);
+        if (!disabled) {
+          console.log(`[${label}][CAPTCHA] Cambiando a audio challenge...`);
           await audioBtn.click();
           await esperar(2000);
           bframe = await getBframe(page);
@@ -287,10 +215,10 @@ async function resolverCaptcha(page: Page, wid: number): Promise<boolean> {
             const resp = await cdpSession.send("Network.getResponseBody", { requestId });
             if (resp.body && resp.body.length > 10) {
               audioBuffer = Buffer.from(resp.body, resp.base64Encoded ? "base64" : "utf-8");
-              console.log(`[W${wid}][CAPTCHA] Audio CDP: ${audioBuffer.length}b`);
+              console.log(`[${label}][CAPTCHA] Audio CDP: ${audioBuffer.length}b`);
             }
           } catch (e) {
-            console.log(`[W${wid}][CAPTCHA] CDP getResponseBody falló:`, (e as Error).message);
+            console.log(`[${label}][CAPTCHA] CDP getResponseBody falló:`, (e as Error).message);
           }
         }
 
@@ -307,22 +235,22 @@ async function resolverCaptcha(page: Page, wid: number): Promise<boolean> {
             }, downloadHref);
             if (b64.length > 10) {
               audioBuffer = Buffer.from(b64, "base64");
-              console.log(`[W${wid}][CAPTCHA] Audio iframe fetch: ${audioBuffer.length}b`);
+              console.log(`[${label}][CAPTCHA] Audio iframe fetch: ${audioBuffer.length}b`);
             }
           } catch (e) {
-            console.log(`[W${wid}][CAPTCHA] iframe fetch falló:`, (e as Error).message);
+            console.log(`[${label}][CAPTCHA] iframe fetch falló:`, (e as Error).message);
           }
         }
 
         if (audioBuffer && audioBuffer.length > 100) {
-          const mp3Path = path.join(SCRIPT_DIR, `captcha_audio_w${wid}.mp3`);
+          const mp3Path = path.join(SCRIPT_DIR, `captcha_audio_pool.mp3`);
           writeFileSync(mp3Path, audioBuffer);
           try {
             const texto = execSync(
               `"${PYTHON}" "${path.join(SCRIPT_DIR, "transcribe.py")}" file "${mp3Path}"`,
               { encoding: "utf-8", timeout: 120000 }
             ).trim();
-            console.log(`[W${wid}][CAPTCHA] Transcripción:`, texto);
+            console.log(`[${label}][CAPTCHA] Transcripción:`, texto);
             if (texto.length > 0) {
               await bframe.locator("#audio-response").fill(texto);
               await bframe.locator("#recaptcha-verify-button").click();
@@ -330,10 +258,10 @@ async function resolverCaptcha(page: Page, wid: number): Promise<boolean> {
               passed = await rcResuelto(page);
             }
           } catch (e) {
-            console.log(`[W${wid}][CAPTCHA] Error transcripción:`, (e as Error).message);
+            console.log(`[${label}][CAPTCHA] Error transcripción:`, (e as Error).message);
           }
         } else {
-          console.log(`[W${wid}][CAPTCHA] Audio bloqueado por Google (0 bytes).`);
+          console.log(`[${label}][CAPTCHA] Audio bloqueado por Google (0 bytes).`);
           audioBloqueado = true;
           rateLimit.record();
         }
@@ -342,41 +270,98 @@ async function resolverCaptcha(page: Page, wid: number): Promise<boolean> {
     }
   }
 
-  if (!passed && await rcResuelto(page)) {
-    console.log(`[W${wid}][CAPTCHA] Resuelto (detección tardía).`);
-    passed = true;
-  }
+  if (!passed && await rcResuelto(page)) { passed = true; }
 
   if (!passed) {
-    // Timeout dinámico: si Google bloqueó el audio, abort rápido; si no, el normal.
     const maxWait = audioBloqueado ? CAPTCHA_TIMEOUT_BLOCKED_MS : CAPTCHA_TIMEOUT_MS;
-    console.log(`[W${wid}][CAPTCHA] Esperando resolución... timeout ${maxWait / 1000}s${audioBloqueado ? " (audio bloqueado — abort rápido)" : ""}`);
+    console.log(`[${label}][CAPTCHA] Esperando resolución... timeout ${maxWait / 1000}s`);
     let waited = 0;
     while (waited < maxWait && !passed) {
       await esperar(2000);
       waited += 2000;
-      if (await rcResuelto(page)) {
-        console.log(`[W${wid}][CAPTCHA] Resuelto en background (${waited / 1000}s).`);
-        passed = true;
-        break;
-      }
-      if (waited % 20000 === 0) console.log(`[W${wid}][CAPTCHA] Esperando... ${waited / 1000}s/${maxWait / 1000}s`);
+      if (await rcResuelto(page)) { passed = true; break; }
     }
   }
 
-  if (passed) rateLimit.reset();   // éxito → resetea el contador de bloqueos
+  if (passed) rateLimit.reset();
   return passed;
 }
 
 // ── Formulario ─────────────────────────────────────────────────────────────
-async function irAFormulario(page: Page, wid: number): Promise<void> {
+async function irAFormulario(page: Page, label: string): Promise<void> {
   await page.goto(URL_SITE, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.locator('[id="aceptaOption:0"]').waitFor({ state: "visible", timeout: 10000 });
   await page.locator('[id="aceptaOption:0"]').click();
   await page.locator('[id="continuarBtn"]').waitFor({ state: "visible", timeout: 10000 });
   await page.locator('[id="continuarBtn"]').click();
   await page.locator("#cedulaInput").waitFor({ state: "visible", timeout: 15000 });
-  console.log(`[W${wid}][NAV] Formulario listo.`);
+  console.log(`[${label}][NAV] Formulario listo.`);
+}
+
+// ── Token Pool Manager — loop en background ────────────────────────────────
+async function runPoolManager(sid: number = 0): Promise<void> {
+  poolManagerRunning = true;
+  const label = `POOL-${sid}`;
+  console.log(`[${label}] Solver iniciado — objetivo: ${POOL_TARGET} tokens listos`);
+
+  while (true) {
+    try {
+      // Descartar tokens expirados
+      const now = Date.now();
+      let expired = 0;
+      for (let i = pool.length - 1; i >= 0; i--) {
+        if (now - pool[i].solvedAt > TOKEN_MAX_AGE_MS) {
+          await pool[i].page.close().catch(() => {});
+          pool.splice(i, 1);
+          expired++;
+        }
+      }
+      if (expired > 0) console.log(`[${label}] ${expired} token(s) expirados (pool: ${pool.length})`);
+
+      // Si el pool está lleno, esperar
+      if (pool.length >= POOL_TARGET) {
+        await esperar(500);
+        continue;
+      }
+
+      // Resolver un CAPTCHA nuevo
+      console.log(`[${label}] Resolviendo CAPTCHA... (pool: ${pool.length}/${POOL_TARGET})`);
+      const page = await context!.newPage();
+      try {
+        await irAFormulario(page, label);
+        const ok = await resolverCaptcha(page, label);
+        if (ok) {
+          pool.push({ page, solvedAt: Date.now() });
+          console.log(`[${label}] Token listo ✓ (pool: ${pool.length}/${POOL_TARGET})`);
+        } else {
+          await page.close().catch(() => {});
+          console.log(`[${label}] CAPTCHA no resuelto — reintentando en 3s`);
+          await esperar(3000);
+        }
+      } catch (e) {
+        await page.close().catch(() => {});
+        console.log(`[${label}] Error: ${(e as Error).message} — reintentando en 3s`);
+        await esperar(3000);
+      }
+    } catch (e) {
+      console.error(`[${label}] Error inesperado: ${(e as Error).message}`);
+      await esperar(5000);
+    }
+  }
+}
+
+// ── Obtener página del pool (espera si está vacío) ─────────────────────────
+async function getPoolPage(): Promise<PoolPage> {
+  while (true) {
+    // Descartar expirados del frente
+    while (pool.length > 0 && Date.now() - pool[0].solvedAt > TOKEN_MAX_AGE_MS) {
+      const p = pool.shift()!;
+      await p.page.close().catch(() => {});
+      console.log(`[POOL] Token expirado al dequeuar — descartado`);
+    }
+    if (pool.length > 0) return pool.shift()!;
+    await esperar(300);
+  }
 }
 
 // ── Parser de resultado ────────────────────────────────────────────────────
@@ -403,9 +388,6 @@ async function parsearPagina(page: Page, cedula: string): Promise<{ datos: Datos
   });
 
   if (!extraido.tieneContainer) {
-    // ViewExpiredException de JSF: el servidor descartó la vista y redirigió a
-    // index o mostró una página de error. Lanzar excepción para que el worker
-    // reemplace la página y reintente, en vez de quedarse con NO DETERMINADO.
     const url = page.url();
     const esViewExpired = url.includes("index.xhtml") || url.includes("error") ||
       /ViewExpired|La sesi[oó]n ha expirado|Session.*expired/i.test(extraido.texto);
@@ -420,8 +402,6 @@ async function parsearPagina(page: Page, cedula: string): Promise<{ datos: Datos
 
   const texto = extraido.texto;
 
-  // Respuesta definitiva del sistema de la policía: no se puede generar online.
-  // No reintentar — es una limitación del sistema, no un error transitorio.
   if (/no puede ser generado/i.test(texto)) {
     return {
       datos: { cedula_consultada: cedula, nombre: null, tiene_antecedentes: false, estado: "CONSULTAR_PRESENCIALMENTE", fecha_consulta: extraido.fecha_consulta, hora_consulta: extraido.hora_consulta },
@@ -445,95 +425,62 @@ async function parsearPagina(page: Page, cedula: string): Promise<{ datos: Datos
   };
 }
 
-// ── Consulta individual (por worker) ──────────────────────────────────────
+// ── Consulta individual ────────────────────────────────────────────────────
 async function ejecutarConsulta(
-  worker: WorkerState,
+  wid: number,
   cedula: string,
   tipo: string = "cc"
 ): Promise<{ cedula: string; tipo: string; datos: DatosConsulta; resultado_raw: string; url: string; screenshot_url: string }> {
-  const { id: wid, page } = worker;
 
-  await worker.goBackPending;
+  // Obtener página con CAPTCHA ya resuelto del pool
+  const { page, solvedAt } = await getPoolPage();
+  const tokenAge = Date.now() - solvedAt;
+  console.log(`[W${wid}][CONSULTA] ${tipo.toUpperCase()} ${cedula} — token del pool (${Math.round(tokenAge / 1000)}s)`);
 
-  const tokenAge = Date.now() - worker.captchaResueltaAt;
-  const tokenFresco = worker.captchaResueltaAt > 0 && tokenAge < 110_000;
-  let enFormulario = false;
-
-  if (tokenFresco) {
-    enFormulario = await page.locator("#cedulaInput").isVisible({ timeout: 2000 }).catch(() => false);
-    if (enFormulario) console.log(`[W${wid}][CAPTCHA] Token fresco (${Math.round(tokenAge / 1000)}s) — reutilizando.`);
-  }
-
-  if (!enFormulario) {
-    await irAFormulario(page, wid);
-  }
-
-  // Verificar CAPTCHA ANTES de llenar el formulario: el selectOption("#cedulaTipo")
-  // dispara un AJAX de JSF que resetea el widget reCAPTCHA, invalidando el token
-  // cacheado si la verificación se hace después del llenado.
-  let captchaOk = false;
-  if (enFormulario && tokenFresco) {
-    captchaOk = await rcResuelto(page);
-    if (captchaOk) console.log(`[W${wid}][CAPTCHA] Token reutilizado OK.`);
-  }
-
-  await page.locator("#cedulaTipo").selectOption(tipo);
-  await page.locator("#cedulaInput").fill(cedula);
-  console.log(`[W${wid}][CONSULTA] ${tipo.toUpperCase()} ${cedula}`);
-  if (!captchaOk) {
-    await acquireCaptchaMutex();
-    try {
-      // Recheck tras obtener mutex — otro worker pudo haber resuelto mientras esperábamos
-      captchaOk = await rcResuelto(page);
-      if (!captchaOk) {
-        captchaOk = await resolverCaptcha(page, wid);
-        if (captchaOk) {
-          worker.captchaResueltaAt = Date.now();
-        }
-      }
-    } finally {
-      releaseCaptchaMutex();
-    }
-  }
-  if (!captchaOk) throw new Error("reCAPTCHA no resuelto dentro del timeout.");
-
-  await page.locator("#j_idt17").click();
-  await page.waitForLoadState("networkidle", { timeout: 20000 }).catch(() => {});
-
-  const url = page.url();
-  const { datos, resultado_raw } = await parsearPagina(page, cedula);
-  console.log(`[W${wid}][CONSULTA] OK — ${datos.nombre ?? "?"} | ${datos.estado}`);
-
-  // Screenshot completo
-  await page.locator("#form\\:mensajeCiudadano").waitFor({ state: "visible", timeout: 10000 }).catch(() => {});
-  await page.evaluate(() => window.scrollTo(0, 0));
-  await esperar(300);
-  const screenshotFile = `${Date.now()}_${cedula}.png`;
-  const screenshotPath = path.join(SCREENSHOTS_DIR, screenshotFile);
   try {
-    const dims = await page.evaluate(() => ({
-      w: Math.max(document.documentElement.scrollWidth, document.body?.scrollWidth ?? 0),
-      h: Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0),
-    }));
-    await page.setViewportSize({ width: Math.max(dims.w, 1280), height: Math.min(dims.h, 8000) });
-    await esperar(400);
-    await page.screenshot({ path: screenshotPath });
-    await page.setViewportSize({ width: 1280, height: 800 });
-  } catch {
-    await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => {});
+    await page.locator("#cedulaTipo").selectOption(tipo);
+    await page.locator("#cedulaInput").fill(cedula);
+
+    // Verificar que el token sigue válido tras el AJAX de selectOption
+    if (!await rcResuelto(page)) {
+      throw new Error("Token del pool expiró tras selectOption");
+    }
+
+    await page.locator("#j_idt17").click();
+    await page.waitForLoadState("networkidle", { timeout: 20000 }).catch(() => {});
+
+    const url = page.url();
+    const { datos, resultado_raw } = await parsearPagina(page, cedula);
+    console.log(`[W${wid}][CONSULTA] OK — ${datos.nombre ?? "?"} | ${datos.estado}`);
+
+    // Screenshot
+    await page.locator("#form\\:mensajeCiudadano").waitFor({ state: "visible", timeout: 10000 }).catch(() => {});
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await esperar(300);
+    const screenshotFile = `${Date.now()}_${cedula}.png`;
+    const screenshotPath = path.join(SCREENSHOTS_DIR, screenshotFile);
+    try {
+      const dims = await page.evaluate(() => ({
+        w: Math.max(document.documentElement.scrollWidth, document.body?.scrollWidth ?? 0),
+        h: Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0),
+      }));
+      await page.setViewportSize({ width: Math.max(dims.w, 1280), height: Math.min(dims.h, 8000) });
+      await esperar(400);
+      await page.screenshot({ path: screenshotPath });
+      await page.setViewportSize({ width: 1280, height: 800 });
+    } catch {
+      await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => {});
+    }
+    const screenshot_url = `${BASE_URL}/screenshot/${screenshotFile}`;
+
+    return { cedula, tipo, datos, resultado_raw, url, screenshot_url };
+  } finally {
+    // Página usada — cerrar (pool manager crea nuevas)
+    await page.close().catch(() => {});
   }
-  const screenshot_url = `${BASE_URL}/screenshot/${screenshotFile}`;
-  console.log(`[W${wid}][SCREENSHOT] ${screenshot_url}`);
-
-  // waitUntil:"commit" en vez de "domcontentloaded": el sitio es JSF y el back
-  // (POST/bfcache) NUNCA dispara domcontentloaded → antes agotaba el timeout de
-  // 10s en CADA consulta. Con "commit" retorna en ~0.07s y el form queda listo.
-  worker.goBackPending = page.goBack({ waitUntil: "commit", timeout: 10000 }).then(() => {}).catch(() => {});
-
-  return { cedula, tipo, datos, resultado_raw, url, screenshot_url };
 }
 
-// ── Colas por worker ───────────────────────────────────────────────────────
+// ── Cola compartida ────────────────────────────────────────────────────────
 interface QueueItem {
   cedula: string;
   tipo: string;
@@ -541,26 +488,25 @@ interface QueueItem {
   reject: (e: any) => void;
   intentos?: number;
 }
-// Cola COMPARTIDA (pool rodante): cualquier worker libre toma la siguiente
-// cédula. Reparte parejo solo — el worker que termina rápido jala más trabajo,
-// en vez del round-robin estático que dejaba a un worker ocioso.
 const cola: QueueItem[] = [];
-
-// Dedup de consultas EN VUELO: si la misma cédula+tipo ya se está procesando, se
-// reusa su misma promesa en vez de encolar otro job. Evita el doble-trabajo si el
-// cliente/proxy reenvía la request (timeout) → un documento = un solo worker.
 const enVuelo = new Map<string, Promise<any>>();
+
+const CONSULTA_TIMEOUT_MS = parseInt(process.env.CONSULTA_TIMEOUT ?? "120") * 1000;
 
 function encolarConsulta(cedula: string, tipo: string): Promise<any> {
   const key = `${tipo}:${cedula}`;
   const existente = enVuelo.get(key);
   if (existente) {
-    console.log(`[DEDUP] ${cedula} ya en vuelo — reusando resultado (no se re-encola)`);
+    console.log(`[DEDUP] ${cedula} ya en vuelo — reusando resultado`);
     return existente;
   }
-  const p = new Promise((resolve, reject) => {
-    cola.push({ cedula, tipo, resolve, reject });
-  });
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error(`Timeout: consulta excedió ${CONSULTA_TIMEOUT_MS / 1000}s`)), CONSULTA_TIMEOUT_MS)
+  );
+  const p = Promise.race([
+    new Promise((resolve, reject) => { cola.push({ cedula, tipo, resolve, reject }); }),
+    timeout,
+  ]);
   enVuelo.set(key, p);
   p.then(() => enVuelo.delete(key), () => enVuelo.delete(key));
   return p;
@@ -572,122 +518,27 @@ function encolarLote(items: { cedula: string; tipo: string }[]): Promise<any>[] 
 
 function colaTotal(): number { return cola.length; }
 
-// ── Backoff de rate-limit — si Google bloquea el audio varias veces seguidas,
-// pausar para que su ventana se resetee (evita la cascada de bloqueos).
-const rateLimit = {
-  blocked: 0,
-  windowStart: 0,
-  WINDOW_MS: 60_000,
-  MAX_BLOCKED: 3,
-  PAUSE_MS: 30_000,
-  record() {
-    const now = Date.now();
-    if (now - this.windowStart > this.WINDOW_MS) { this.blocked = 0; this.windowStart = now; }
-    this.blocked++;
-  },
-  reset() { this.blocked = 0; },
-  async waitIfLimited(wid: number) {
-    if (this.blocked >= this.MAX_BLOCKED) {
-      console.log(`[W${wid}][RATE-LIMIT] ${this.blocked} bloqueos en <60s — pausando ${this.PAUSE_MS / 1000}s`);
-      await esperar(this.PAUSE_MS);
-      this.blocked = 0;
-      this.windowStart = Date.now();
-    }
-  },
-};
-
-// ── Mutex CAPTCHA — solo 1 worker resuelve CAPTCHA a la vez ───────────────
-let captchaMutexFree = true;
-async function acquireCaptchaMutex(): Promise<void> {
-  while (!captchaMutexFree) await esperar(500);
-  captchaMutexFree = false;
-}
-function releaseCaptchaMutex(): void { captchaMutexFree = true; }
-
 // ── Worker loop ────────────────────────────────────────────────────────────
 function startWorker(worker: WorkerState): void {
-  let lastKeepaliveAt  = 0;
-  let lastConsultaAt   = 0;   // última consulta real (no warmup)
-  let rewarmPendiente  = false; // permite solo 1 rewarm por consulta
-  const KEEPALIVE_MS   = 18_000;   // ping JSF cada 18s (timeout del servidor ~30s)
-  const REWARM_MS      = 95_000;   // re-solver CAPTCHA antes de que expire el token (110s)
-
   const loop = async () => {
     while (true) {
-      const item = cola.shift();   // pool rodante: el worker libre toma la siguiente
-      if (!item) {
-        // Keepalive: solo cuando idle y ya hubo actividad (warmup o consulta previa).
-        // No afecta procesos en curso — si llega un item, el worker lo toma en el
-        // próximo ciclo (la cola lo retiene mientras dura el ping de ~1s).
-        const hayTrabajo = cola.length > 0 || workers.some(w => w.busy);
-        if (worker.captchaResueltaAt > 0 && Date.now() - lastKeepaliveAt > KEEPALIVE_MS) {
-          lastKeepaliveAt = Date.now();
-          const tokenAge = Date.now() - worker.captchaResueltaAt;
-          if (tokenAge > REWARM_MS && !hayTrabajo && rewarmPendiente) {
-            rewarmPendiente = false;
-            // Token próximo a expirar: re-resolver CAPTCHA (solo 1 vez por consulta).
-            // Si el formulario sigue visible (sesión JSF activa), resolver sin
-            // crear una vista nueva (evita quemar el límite de ~15 vistas/sesión).
-            // Solo hacer irAFormulario si la sesión ya expiró.
-            const formVisible = await worker.page.locator("#cedulaInput").isVisible({ timeout: 2000 }).catch(() => false);
-            if (formVisible) {
-              console.log(`[W${worker.id}][KEEPALIVE] Re-calentando CAPTCHA sin re-navegar (token ${Math.round(tokenAge / 1000)}s)...`);
-              await acquireCaptchaMutex();
-              let ok = false;
-              try { ok = await resolverCaptcha(worker.page, worker.id); } finally { releaseCaptchaMutex(); }
-              if (ok) {
-                worker.captchaResueltaAt = Date.now();
-                console.log(`[W${worker.id}][KEEPALIVE] Caliente ✓ (sin nueva vista JSF).`);
-              } else {
-                await calentarWorker(worker).catch(() => {});
-              }
-            } else {
-              console.log(`[W${worker.id}][KEEPALIVE] Sesión expirada — re-navegando...`);
-              await calentarWorker(worker).catch(() => {});
-            }
-          } else {
-            // Solo mantener sesión JSF viva con un ping silencioso (sin navegar)
-            await worker.page.evaluate((url: string) =>
-              fetch(url, {
-                method: "HEAD",
-                credentials: "include",
-                cache: "no-store",
-                headers: {
-                  "Faces-Request": "partial/ajax",
-                  "X-Requested-With": "XMLHttpRequest",
-                },
-              }).catch(() => {})
-            , URL_SITE).catch(() => {});
-          }
-        }
-        await esperar(100);
-        continue;
-      }
+      const item = cola.shift();
+      if (!item) { await esperar(100); continue; }
+
       worker.busy = true;
       try {
-        let result = await ejecutarConsulta(worker, item.cedula, item.tipo);
+        let result = await ejecutarConsulta(worker.id, item.cedula, item.tipo);
         if (result.datos.estado === "NO DETERMINADO") {
           console.log(`[W${worker.id}][RETRY] NO DETERMINADO — reintentando...`);
-          await esperar(3000);
-          result = await ejecutarConsulta(worker, item.cedula, item.tipo);
+          await esperar(2000);
+          result = await ejecutarConsulta(worker.id, item.cedula, item.tipo);
         }
-        lastConsultaAt  = Date.now();
-        rewarmPendiente = true;
         item.resolve(result);
       } catch (e) {
         item.intentos = (item.intentos ?? 0) + 1;
         if (item.intentos < MAX_INTENTOS) {
-          console.log(`[W${worker.id}][RETRY] fallo intento ${item.intentos}/${MAX_INTENTOS} — reencolando (failover): ${(e as Error).message}`);
-          // Página quemada (reCAPTCHA en estado de error): reemplazar por una fresca
-          try {
-            const pNueva = await context!.newPage();
-            await worker.page.close().catch(() => {});
-            worker.page = pNueva;
-            worker.captchaResueltaAt = 0;
-            worker.goBackPending = Promise.resolve();
-            console.log(`[W${worker.id}][RETRY] Página reemplazada por una fresca.`);
-          } catch {}
-          cola.push(item);   // failover: cualquier worker libre lo reintenta
+          console.log(`[W${worker.id}][RETRY] fallo intento ${item.intentos}/${MAX_INTENTOS} — reencolando: ${(e as Error).message}`);
+          cola.push(item);
         } else {
           item.reject(e);
         }
@@ -701,6 +552,59 @@ function startWorker(worker: WorkerState): void {
     worker.busy = false;
     setTimeout(() => startWorker(worker), 3000);
   });
+}
+
+// ── Inicializar browser ────────────────────────────────────────────────────
+async function initBrowser(): Promise<void> {
+  if (!(await cdpActivo(CDP_PORT))) {
+    throw new Error(`CDP no activo en puerto ${CDP_PORT}.`);
+  }
+  await asegurarPagina(CDP_PORT);
+  console.log("CDP activo — conectando browser...");
+  browser = await chromium.connectOverCDP(`http://127.0.0.1:${CDP_PORT}`);
+  const ctxList = browser.contexts();
+  context = ctxList.length > 0 ? ctxList[0] : await browser.newContext();
+
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+    delete (window as any).cdc_adoQpoasnfa76pfcZLmcfl_Array;
+    delete (window as any).cdc_adoQpoasnfa76pfcZLmcfl_Promise;
+    delete (window as any).cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
+    window.open = () => null;
+  });
+
+  // Cerrar tabs que extensiones abran automáticamente
+  const browserCdp = await browser.newBrowserCDPSession();
+  await browserCdp.send("Target.setDiscoverTargets", { discover: true });
+  browserCdp.on("Target.targetCreated", async (event: any) => {
+    const t = event.targetInfo;
+    if (t.type === "page" && t.url !== "about:blank" && !t.url.includes("antecedentes.policia.gov.co")) {
+      await browserCdp.send("Target.closeTarget", { targetId: t.targetId }).catch(() => {});
+    }
+  });
+
+  // Crear workers
+  for (let i = 0; i < MAX_WORKERS; i++) {
+    workers.push({ id: i, busy: false });
+  }
+
+  // Arrancar solvers escalonados (5s entre cada uno para no saturar Google)
+  for (let sid = 0; sid < POOL_SOLVERS; sid++) {
+    const startSolver = (id: number) => {
+      runPoolManager(id).catch(e => {
+        console.error(`[POOL-${id}] Crashed: ${e.message} — reiniciando en 5s`);
+        setTimeout(() => startSolver(id), 5000);
+      });
+    };
+    setTimeout(() => startSolver(sid), sid * 5000);
+  }
+
+  // Esperar al menos 1 token en el pool antes de aceptar tráfico
+  console.log("Esperando primer token del pool...");
+  while (pool.length === 0) await esperar(500);
+  console.log(`Pool listo — ${MAX_WORKERS} worker(s) arrancando.`);
+
+  for (const w of workers) startWorker(w);
 }
 
 // ── Servidor HTTP ──────────────────────────────────────────────────────────
@@ -726,6 +630,8 @@ const server = http.createServer(async (req, res) => {
     return jsonResp(res, 200, {
       ok: true,
       cdp: CDP_PORT,
+      pool: pool.length,
+      pool_target: POOL_TARGET,
       en_cola: colaTotal(),
       workers: workers.map(w => ({ id: w.id, busy: w.busy })),
       procesando: workers.some(w => w.busy),
@@ -782,26 +688,17 @@ const server = http.createServer(async (req, res) => {
     if (invalidas.length > 0)
       return jsonResp(res, 400, { ok: false, error: `Cédulas inválidas: ${invalidas.map((i: any) => i.cedula || "(vacía)").join(", ")}` });
 
-    console.log(`[LOTE] ${items.length} consultas distribuidas en ${Math.min(MAX_WORKERS, items.length)} workers`);
+    console.log(`[LOTE] ${items.length} consultas`);
     const promesas = encolarLote(items);
     const resultados = await Promise.all(
       promesas.map(async (p: Promise<any>, idx: number) => {
-        try {
-          const r = await p;
-          return { ok: true, ...r };
-        } catch (e: any) {
-          return { ok: false, cedula: items[idx].cedula, error: e.message };
-        }
+        try { return { ok: true, ...await p }; }
+        catch (e: any) { return { ok: false, cedula: items[idx].cedula, error: e.message }; }
       })
     );
     return jsonResp(res, 200, { ok: true, total: resultados.length, resultados });
   }
 
-  // ── Lote en STREAM (NDJSON) — para cargas masivas (Excel 100+) ──────────────
-  // Una línea JSON por resultado, apenas se completa. Mantiene la conexión viva
-  // → evita el timeout (~100s) de Cloudflare en lotes grandes → soporta 100+.
-  // Feed continuo al pool rodante (sin barrera por olas) = máxima velocidad; los
-  // resultados salen en stream en orden de finalización. El cliente lee línea a línea.
   if (req.method === "POST" && req.url === "/consultar-lote-stream") {
     let body: any;
     try { body = await parseBody(req); } catch (e) {
@@ -823,11 +720,11 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, {
       "Content-Type": "application/x-ndjson; charset=utf-8",
       "Cache-Control": "no-cache",
-      "X-Accel-Buffering": "no",   // evita buffering de proxies
+      "X-Accel-Buffering": "no",
     });
     const write = (obj: any) => { if (!res.writableEnded) res.write(JSON.stringify(obj) + "\n"); };
-    console.log(`[LOTE-STREAM] ${items.length} cédulas — streaming por el pool (${MAX_WORKERS} workers)`);
-    write({ event: "start", total: items.length, workers: MAX_WORKERS });
+    console.log(`[LOTE-STREAM] ${items.length} cédulas`);
+    write({ event: "start", total: items.length, workers: MAX_WORKERS, pool: pool.length });
 
     let oks = 0;
     await Promise.all(items.map((item: any, idx: number) =>
@@ -851,24 +748,6 @@ const server = http.createServer(async (req, res) => {
     process.exit(1);
   }
 
-  // Keep-alive JSF (25 min inactividad)
-  const KEEPALIVE_INTERVAL = 5 * 60 * 1000;
-  const KEEPALIVE_IDLE_THRESHOLD = 25 * 60 * 1000;
-  setInterval(async () => {
-    if (workers.some(w => w.busy) || colaTotal() > 0) return;
-    const lastActivity = Math.max(...workers.map(w => w.captchaResueltaAt), 0);
-    const idle = Date.now() - (lastActivity || Date.now());
-    if (idle < KEEPALIVE_IDLE_THRESHOLD) return;
-    const w = workers[0];
-    if (!w) return;
-    try {
-      await w.page.evaluate(() =>
-        fetch("https://antecedentes.policia.gov.co:7005/WebJudicial/index.xhtml", { method: "HEAD", credentials: "include" }).catch(() => {})
-      );
-      console.log("[KEEPALIVE] Sesión JSF renovada.");
-    } catch {}
-  }, KEEPALIVE_INTERVAL);
-
   // Limpiar screenshots > 10 min
   setInterval(() => {
     const cutoff = Date.now() - 10 * 60 * 1000;
@@ -879,6 +758,16 @@ const server = http.createServer(async (req, res) => {
       }
     } catch {}
   }, 60 * 1000);
+
+  // Graceful shutdown
+  const shutdown = async (signal: string) => {
+    console.log(`\n[${signal}] Cerrando...`);
+    server.close();
+    await browser?.close().catch(() => {});
+    process.exit(0);
+  };
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT",  () => shutdown("SIGINT"));
 
   server.listen(SERVER_PORT, "127.0.0.1", () => {
     console.log(`\nServidor activo en http://127.0.0.1:${SERVER_PORT} — ${MAX_WORKERS} worker(s)`);
