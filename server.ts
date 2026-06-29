@@ -39,6 +39,7 @@ const workers: WorkerState[] = [];
 interface PoolPage {
   page: Page;
   solvedAt: number;
+  expiresAt: number; // deadline precalculado con buffer incluido
 }
 const pool: PoolPage[] = [];
 let poolManagerRunning = false;
@@ -315,7 +316,7 @@ async function runPoolManager(sid: number = 0): Promise<void> {
       const now = Date.now();
       let expired = 0;
       for (let i = pool.length - 1; i >= 0; i--) {
-        if (now - pool[i].solvedAt > TOKEN_MAX_AGE_MS - TOKEN_MIN_BUFFER_MS) {
+        if (now > pool[i].expiresAt) {
           await pool[i].page.close().catch(() => {});
           pool.splice(i, 1);
           expired++;
@@ -336,7 +337,8 @@ async function runPoolManager(sid: number = 0): Promise<void> {
         await irAFormulario(page, label);
         const ok = await resolverCaptcha(page, label);
         if (ok) {
-          pool.push({ page, solvedAt: Date.now() });
+          const solvedAt = Date.now();
+          pool.push({ page, solvedAt, expiresAt: solvedAt + TOKEN_MAX_AGE_MS - TOKEN_MIN_BUFFER_MS });
           console.log(`[${label}] Token listo ✓ (pool: ${pool.length}/${POOL_TARGET})`);
         } else {
           await page.close().catch(() => {});
@@ -361,7 +363,7 @@ const TOKEN_MIN_BUFFER_MS = 3_000;
 async function getPoolPage(): Promise<PoolPage> {
   while (true) {
     // Descartar tokens expirados o con menos de 3s restantes
-    while (pool.length > 0 && Date.now() - pool[0].solvedAt > TOKEN_MAX_AGE_MS - TOKEN_MIN_BUFFER_MS) {
+    while (pool.length > 0 && Date.now() > pool[0].expiresAt) {
       const p = pool.shift()!;
       await p.page.close().catch(() => {});
       console.log(`[POOL] Token casi expirado al dequeuar — descartado`);
@@ -440,9 +442,9 @@ async function ejecutarConsulta(
 ): Promise<{ cedula: string; tipo: string; datos: DatosConsulta; resultado_raw: string; url: string; screenshot_url: string }> {
 
   // Obtener página con CAPTCHA ya resuelto del pool
-  const { page, solvedAt } = await getPoolPage();
-  const tokenAge = Date.now() - solvedAt;
-  console.log(`[W${wid}][CONSULTA] ${tipo.toUpperCase()} ${cedula} — token del pool (${Math.round(tokenAge / 1000)}s)`);
+  const { page, expiresAt } = await getPoolPage();
+  const tokenTTL = Math.round((expiresAt - Date.now()) / 1000);
+  console.log(`[W${wid}][CONSULTA] ${tipo.toUpperCase()} ${cedula} — token TTL: ${tokenTTL}s`);
 
   try {
     // Verificar token antes de cualquier interacción — fail fast
