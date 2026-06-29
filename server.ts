@@ -243,7 +243,7 @@ async function resolverCaptcha(page: Page, label: string): Promise<boolean> {
         }
 
         if (audioBuffer && audioBuffer.length > 100) {
-          const mp3Path = path.join(SCRIPT_DIR, `captcha_audio_pool.mp3`);
+          const mp3Path = path.join(SCRIPT_DIR, `captcha_audio_${label.replace(/[^a-z0-9]/gi, "_")}.mp3`);
           writeFileSync(mp3Path, audioBuffer);
           try {
             const texto = execSync(
