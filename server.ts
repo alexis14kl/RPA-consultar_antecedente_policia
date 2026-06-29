@@ -796,6 +796,7 @@ const server = http.createServer(async (req, res) => {
     console.log("  POST /consultar              { \"cedula\": \"1234567\", \"tipo\": \"cc\" }");
     console.log("  POST /consultar-lote         { \"cedulas\": [{\"cedula\": \"...\", \"tipo\": \"cc\"}] }");
     console.log("  POST /consultar-lote-stream  { \"cedulas\": [{\"cedula\": \"...\", \"tipo\": \"cc\"}] }  (NDJSON)");
-    console.log("  GET  /health\n");
+    console.log("  GET  /health");
+    console.log(`\n  Tipos válidos: ${TIPOS_VALIDOS.map(t => `"${t}"`).join(" | ")}\n`);
   });
 })();
