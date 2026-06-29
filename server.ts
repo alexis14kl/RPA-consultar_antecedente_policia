@@ -447,7 +447,10 @@ async function ejecutarConsulta(
     }
 
     await page.locator("#j_idt17").click();
-    await page.waitForLoadState("networkidle", { timeout: 20000 }).catch(() => {});
+    await Promise.race([
+      page.waitForLoadState("networkidle", { timeout: 20000 }),
+      page.locator("#form\\:mensajeCiudadano").waitFor({ state: "visible", timeout: 20000 }),
+    ]).catch(() => {});
 
     const url = page.url();
     const { datos, resultado_raw } = await parsearPagina(page, cedula);
