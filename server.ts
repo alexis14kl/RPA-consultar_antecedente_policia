@@ -315,7 +315,7 @@ async function runPoolManager(sid: number = 0): Promise<void> {
       const now = Date.now();
       let expired = 0;
       for (let i = pool.length - 1; i >= 0; i--) {
-        if (now - pool[i].solvedAt > TOKEN_MAX_AGE_MS) {
+        if (now - pool[i].solvedAt > TOKEN_MAX_AGE_MS - TOKEN_MIN_BUFFER_MS) {
           await pool[i].page.close().catch(() => {});
           pool.splice(i, 1);
           expired++;
