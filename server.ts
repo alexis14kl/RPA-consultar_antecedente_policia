@@ -376,8 +376,14 @@ async function getPoolPage(): Promise<PoolPage> {
       console.log(`[POOL] Token expirado descartado`);
     }
     if (pool.length > 0) {
+      const token = pool.pop()!; // LIFO — toma el más reciente (fresco)
+      if (!await rcResuelto(token.page)) {
+        await token.page.close().catch(() => {});
+        console.log(`[POOL] Token inválido descartado (rcResuelto=false)`);
+        continue;
+      }
       if (waited) semaphore.trackReady();
-      return pool.pop()!; // LIFO — toma el más reciente (fresco)
+      return token;
     }
     if (!waited) { semaphore.trackWait(); waited = true; }
     await esperar(300);
@@ -458,11 +464,6 @@ async function ejecutarConsulta(
   console.log(`[W${wid}][CONSULTA] ${tipo.toUpperCase()} ${cedula} — token TTL: ${tokenTTL}s`);
 
   try {
-    // Verificar token antes de cualquier interacción — fail fast
-    if (!await rcResuelto(page)) {
-      throw new Error("Token del pool inválido al iniciar consulta");
-    }
-
     // Solo cambiar tipo si es distinto al default (cc) — evita AJAX innecesario
     const currentTipo = await page.locator("#cedulaTipo").inputValue().catch(() => "cc");
     if (currentTipo !== tipo) {
