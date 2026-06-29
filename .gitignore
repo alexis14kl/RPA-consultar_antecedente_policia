@@ -5,3 +5,5 @@ captcha_audio.mp3
 screenshots/
 chrome-cdp-profile/
 .venv/
+manual_test.ts
+test_token_reuse.ts
