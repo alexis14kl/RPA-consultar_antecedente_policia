@@ -162,19 +162,24 @@ async function resolverCaptcha(page: Page, label: string): Promise<boolean> {
 
   let bframe: Frame | null = null;
   if (!passed) {
-    let hasHolder = false;
-    for (let w = 0; w < 15 && !hasHolder; w++) {
+    // Esperar a que Buster INYECTE su botón real (#solver-button), NO el contenedor
+    // nativo .help-button-holder. El holder aparece casi al instante pero VACÍO; con el
+    // service worker de Buster frío (recién arranca) tarda en inyectar el botón adentro.
+    // Clickear el holder vacío no dispara nada → Buster nunca arranca → timeout → cae al
+    // audio. Esperando #solver-button, el click solo ocurre cuando Buster ya está listo
+    // → resuelve en el PRIMER intento (le da hasta 15s al SW frío para inyectar).
+    let hasSolver = false;
+    for (let w = 0; w < 15 && !hasSolver; w++) {
       await esperar(1000);
       bframe = await getBframe(page);
       if (bframe) {
-        hasHolder = (await bframe.locator(".help-button-holder").count().catch(() => 0)) > 0;
+        hasSolver = (await bframe.locator("#solver-button").count().catch(() => 0)) > 0;
       }
     }
     if (bframe) {
-      const holder = bframe.locator(".help-button-holder");
-      if (hasHolder) {
-        console.log(`[${label}][CAPTCHA] Clic en ícono Buster...`);
-        await holder.click({ force: true, timeout: 8000 }).catch((e) => console.log(`[${label}][CAPTCHA] click Buster:`, (e as Error).message));
+      if (hasSolver) {
+        console.log(`[${label}][CAPTCHA] Clic en ícono Buster (#solver-button)...`);
+        await bframe.locator("#solver-button").click({ force: true, timeout: 8000 }).catch((e) => console.log(`[${label}][CAPTCHA] click Buster:`, (e as Error).message));
         for (let j = 0; j < 25 && !passed; j++) {
           await esperar(1000);
           if (await rcResuelto(page)) { console.log(`[${label}][CAPTCHA] Buster resolvió.`); passed = true; }
