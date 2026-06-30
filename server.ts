@@ -517,6 +517,25 @@ const enVuelo = new Map<string, Promise<any>>();
 const CONSULTA_TIMEOUT_MS = parseInt(process.env.CONSULTA_TIMEOUT ?? "120") * 1000;
 let reqCounter = 0;
 
+// ── Caché de resultados ────────────────────────────────────────────────────
+const CACHE_TTL_MS = parseInt(process.env.CACHE_TTL ?? "30") * 60 * 1000; // default 30 min
+interface CacheEntry { result: any; expiresAt: number; }
+const resultCache = new Map<string, CacheEntry>();
+let cacheHits = 0;
+let cacheMisses = 0;
+
+function cacheGet(key: string): any | null {
+  const entry = resultCache.get(key);
+  if (!entry) { cacheMisses++; return null; }
+  if (Date.now() > entry.expiresAt) { resultCache.delete(key); cacheMisses++; return null; }
+  cacheHits++;
+  return entry.result;
+}
+
+function cacheSet(key: string, result: any) {
+  resultCache.set(key, { result, expiresAt: Date.now() + CACHE_TTL_MS });
+}
+
 async function ejecutarConReintentos(cedula: string, tipo: string): Promise<any> {
   // Sin semáforo aquí — el pool es el limitador natural de concurrencia.
   // Cada query espera su token libremente sin bloquear slots a otros.
@@ -551,6 +570,14 @@ async function ejecutarConReintentos(cedula: string, tipo: string): Promise<any>
 
 function encolarConsulta(cedula: string, tipo: string): Promise<any> {
   const key = `${tipo}:${cedula}`;
+
+  // Caché hit — devolver resultado guardado sin tocar la policía
+  const cached = cacheGet(key);
+  if (cached) {
+    console.log(`[CACHE] HIT ${tipo.toUpperCase()} ${cedula}`);
+    return Promise.resolve({ ...cached, cached: true });
+  }
+
   const existente = enVuelo.get(key);
   if (existente) {
     console.log(`[DEDUP] ${cedula} ya en vuelo — reusando resultado`);
@@ -561,7 +588,10 @@ function encolarConsulta(cedula: string, tipo: string): Promise<any> {
   );
   const p = Promise.race([ejecutarConReintentos(cedula, tipo), timeout]);
   enVuelo.set(key, p);
-  p.then(() => enVuelo.delete(key), () => enVuelo.delete(key));
+  p.then((result) => {
+    enVuelo.delete(key);
+    cacheSet(key, result); // guardar en caché al completar
+  }, () => enVuelo.delete(key));
   return p;
 }
 
@@ -659,6 +689,7 @@ const server = http.createServer(async (req, res) => {
       activas: semaphore.active,
       esperando: semaphore.waiting,
       max_workers: MAX_WORKERS,
+      cache: { entradas: resultCache.size, hits: cacheHits, misses: cacheMisses, ttl_min: CACHE_TTL_MS / 60000 },
     });
   }
 
