@@ -1,0 +1,35 @@
+# .dockerignore específico de este Dockerfile (convención BuildKit:
+# <dockerfile>.dockerignore junto al Dockerfile). Las rutas son relativas
+# al build context = RAÍZ del proyecto.
+#
+# NO ignorar: package-lock.json (npm lo necesita) ni dockertApp/ (el Dockerfile
+# copia dockertApp/docker-entrypoint.sh).
+node_modules
+.git
+npm-debug.log*
+
+# secrets / entornos
+.env
+.env.*
+.mcp.json
+"%USERPROFILE%\\.mcp.json"
+.claude
+.venv
+*.key
+*.pem
+credentials.json
+secrets
+secrets/**
+
+# artefactos de runtime
+# (chrome-cdp-profile NO se ignora a propósito → lleva la confianza de Google horneada)
+screenshots
+captcha_audio*.mp3
+*.wav
+*.mp3
+dist
+.cache
+
+# varios
+.DS_Store
+*.log

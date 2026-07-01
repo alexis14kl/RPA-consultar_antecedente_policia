@@ -12,6 +12,7 @@ const SCRIPT_DIR = __dirname;
 const PYTHON = process.env.PYTHON ?? (process.platform === "win32" ? "python" : "python3");
 const CDP_PORT = 9223;
 const SERVER_PORT = parseInt(process.env.PORT ?? "3000");
+const SERVER_HOST = process.env.HOST ?? "127.0.0.1";   // 0.0.0.0 en Docker (env HOST) para que el puerto publicado funcione
 const CAPTCHA_TIMEOUT_MS = parseInt(process.env.CAPTCHA_TIMEOUT ?? "35") * 1000;
 const CAPTCHA_TIMEOUT_BLOCKED_MS = parseInt(process.env.CAPTCHA_TIMEOUT_BLOCKED ?? "10") * 1000;
 const BASE_URL = process.env.BASE_URL ?? `http://localhost:${SERVER_PORT}`;
@@ -832,8 +833,8 @@ const server = http.createServer(async (req, res) => {
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT",  () => shutdown("SIGINT"));
 
-  server.listen(SERVER_PORT, "127.0.0.1", () => {
-    console.log(`\nServidor activo en http://127.0.0.1:${SERVER_PORT} — ${MAX_WORKERS} worker(s)`);
+  server.listen(SERVER_PORT, SERVER_HOST, () => {
+    console.log(`\nServidor activo en http://${SERVER_HOST}:${SERVER_PORT} — ${MAX_WORKERS} worker(s)`);
     console.log("  POST /consultar              { \"cedula\": \"1234567\", \"tipo\": \"cc\" }");
     console.log("  POST /consultar-lote         { \"cedulas\": [{\"cedula\": \"...\", \"tipo\": \"cc\"}] }");
     console.log("  POST /consultar-lote-stream  { \"cedulas\": [{\"cedula\": \"...\", \"tipo\": \"cc\"}] }  (NDJSON)");

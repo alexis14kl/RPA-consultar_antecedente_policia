@@ -1,0 +1,46 @@
+# ============================================================
+# Docker Compose — App de consulta de antecedentes
+#
+# Uso (desde la raíz del proyecto):
+#   docker compose -f dockertApp/docker-compose.yml up --build -d
+#   docker compose -f dockertApp/docker-compose.yml logs -f
+#   docker compose -f dockertApp/docker-compose.yml down
+#
+# El build context es la RAÍZ del proyecto (..), por eso el Dockerfile puede
+# copiar server.ts / transcribe.py / buster-ext / etc.
+# ============================================================
+services:
+  police-app:
+    build:
+      context: ..                       # raíz del proyecto (donde está server.ts)
+      dockerfile: dockertApp/Dockerfile
+    container_name: ct-police-scrapping-app
+    environment:
+      - NODE_ENV=production
+      - HOST=0.0.0.0                     # bind 0.0.0.0 → el puerto publicado funciona
+      - PORT=3004
+      - PYTHON=python3
+      - TZ=America/Bogota                # el navegador reporta la misma zona que la IP (evita mismatch = señal de bot)
+      - WORKERS=${WORKERS:-2}
+      - POOL_TARGET=${POOL_TARGET:-6}
+      - POOL_SOLVERS=${POOL_SOLVERS:-2}
+      - CAPTCHA_TIMEOUT=${CAPTCHA_TIMEOUT:-35}
+      - BASE_URL=${BASE_URL:-http://localhost:3004}
+    ports:
+      - "3004:3004"
+    restart: unless-stopped             # 24/7: se levanta solo si el contenedor cae
+    volumes:
+      - police-app-screenshots:/app/screenshots
+      # perfil: NO se monta volumen → usa el chrome-cdp-profile HORNEADO en la imagen (confianza incluida)
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3004/health"]
+      interval: 15s
+      timeout: 5s
+      start_period: 120s                # margen para el warm-up del pool de tokens
+      retries: 3
+
+volumes:
+  police-app-cdp-profile:
+    driver: local
+  police-app-screenshots:
+    driver: local

@@ -2,7 +2,7 @@
 
 CDP_PORT=9223
 URL="https://antecedentes.policia.gov.co:7005/WebJudicial/index.xhtml"
-CHROME="/usr/lib/chromium/chromium"
+CHROME="${CHROME_BIN:-/usr/lib/chromium/chromium}"   # CHROME_BIN permite usar Chrome for Testing (docker); default = chromium de Debian (nativo)
 USER_DATA="$(dirname "$0")/chrome-cdp-profile"
 XDISPLAY=:99
 
