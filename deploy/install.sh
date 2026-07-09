@@ -9,14 +9,15 @@ echo "[install] repo: $REPO"
 chmod +x "$REPO/launch_chrome_linux.sh"
 
 echo "[install] copiando units a /etc/systemd/system/"
-cp "$UNITS/rpa-xvfb.service"   /etc/systemd/system/
-cp "$UNITS/rpa-chrome.service" /etc/systemd/system/
-cp "$UNITS/rpa-server.service" /etc/systemd/system/
-cp "$UNITS/rpa-recycle.service" /etc/systemd/system/
-cp "$UNITS/rpa-recycle.timer"   /etc/systemd/system/
+cp "$UNITS/rpa-xvfb.service"          /etc/systemd/system/
+cp "$UNITS/rpa-chrome.service"        /etc/systemd/system/
+cp "$UNITS/rpa-server.service"        /etc/systemd/system/
+cp "$UNITS/rpa-proxy-watchdog.service" /etc/systemd/system/
+cp "$UNITS/rpa-recycle.service"       /etc/systemd/system/
+cp "$UNITS/rpa-recycle.timer"         /etc/systemd/system/
 
 systemctl daemon-reload
-systemctl enable rpa-xvfb.service rpa-chrome.service rpa-server.service >/dev/null 2>&1 || true
+systemctl enable rpa-xvfb.service rpa-chrome.service rpa-server.service rpa-proxy-watchdog.service >/dev/null 2>&1 || true
 
 echo "[install] OK. Units instalados y habilitados (arranque en boot)."
 echo "  Reciclado periódico (opcional):  systemctl enable --now rpa-recycle.timer"

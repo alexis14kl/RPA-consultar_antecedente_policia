@@ -1,0 +1,19 @@
+[Unit]
+Description=RPA — watchdog del proxy (rota hide-my-ip cuando Google bloquea la IP)
+After=rpa-chrome.service rpa-server.service
+Requires=rpa-chrome.service
+
+[Service]
+Type=simple
+WorkingDirectory=/root/RPA-consultar_antecedente_policia
+Environment=CDP_PORT=9223
+Environment=HEALTH_PORT=4321
+EnvironmentFile=-/root/RPA-consultar_antecedente_policia/.env
+# Esperar al CDP antes de arrancar (el watchdog se engancha por CDP).
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 60); do curl -sf http://127.0.0.1:9223/json/version >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1'
+ExecStart=/usr/bin/node proxy_watchdog.cjs
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
