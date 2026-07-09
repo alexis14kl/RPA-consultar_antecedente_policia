@@ -1,0 +1,125 @@
+{
+   "alllocations": {
+      "message": "สถานที่ทั้งหมดที่มี"
+   },
+   "btn_back": {
+      "message": "กลับ"
+   },
+   "btn_buy": {
+      "message": "ซื้อใบอนุญาต"
+   },
+   "btn_enter_license_key": {
+      "message": "ป้อนรหัสลิขสิทธิ์"
+   },
+   "buy_label": {
+      "message": "ซื้อใบอนุญาต"
+   },
+   "cancel_btn": {
+      "message": "ยกเลิก"
+   },
+   "change_license_label": {
+      "message": "เปลี่ยนใบอนุญาต"
+   },
+   "check_my_ip_label": {
+      "message": "ตรวจสอบ IP ของฉัน"
+   },
+   "connect_failed_msg": {
+      "message": "ไม่สามารถเชื่อมต่อกับ {name} ได้ในขณะนี้ กรุณาลองอีกครั้งหรือเลือกตำแหน่งอื่น"
+   },
+   "connected_label": {
+      "message": "เชื่อมต่อแล้ว"
+   },
+   "connecting_msg": {
+      "message": "กำลังเชื่อมต่อ..."
+   },
+   "disconnected_label": {
+      "message": "ยกเลิกการเชื่อมต่อ"
+   },
+   "enter_license_menu_label": {
+      "message": "ป้อนไลเซนส์"
+   },
+   "error_msg": {
+      "message": "ไม่สามารถดึงข้อมูลรับรองพร็อกซี โปรดลองอีกครั้ง"
+   },
+   "fetch_error_msg": {
+      "message": "ไม่สามารถโหลดรายการเซิร์ฟเวอร์ได้ ผู้ให้บริการอินเทอร์เน็ตของคุณอาจกำลังบล็อกบริการ VPN ลองข้อมูลมือถือหรือเครือข่ายอื่น แล้วคลิก ลองอีกครั้ง"
+   },
+   "hide_my_ip_label": {
+      "message": "Hide My IP"
+   },
+   "invalid_key_msg": {
+      "message": "รหัสไม่ถูกต้อง"
+   },
+   "killed_banner_msg": {
+      "message": "เซิร์ฟเวอร์ {country} ไม่พร้อมใช้งานและถูกตัดการเชื่อมต่อ กรุณาเลือกตำแหน่งอื่น"
+   },
+   "killswitch_label": {
+      "message": "สวิตช์ฉุกเฉิน"
+   },
+   "last_location_label": {
+      "message": "ตำแหน่งล่าสุด"
+   },
+   "leak_detected_msg": {
+      "message": "การตรวจสอบการเชื่อมต่อล้มเหลว — IP ไม่เปลี่ยนแปลง ลองเซิร์ฟเวอร์อื่น"
+   },
+   "leak_location_msg": {
+      "message": "ไม่สามารถยืนยันการเชื่อมต่อกับ {name} ได้ — IP ของคุณไม่เปลี่ยนแปลง กรุณาเลือกตำแหน่งอื่น"
+   },
+   "license_removed_msg": {
+      "message": "ลบใบอนุญาตแล้ว"
+   },
+   "no_more_servers_msg": {
+      "message": "ไม่มีเซิร์ฟเวอร์เพิ่มเติมให้ลอง กรุณาลองอีกครั้งภายหลัง"
+   },
+   "please_enter_key_msg": {
+      "message": "กรุณาป้อนรหัสไลเซนส์"
+   },
+   "please_upgrade_msg": {
+      "message": "อัปเกรดเพื่อใช้สถานที่พรีเมียมนี้"
+   },
+   "premium_active_label_popover": {
+      "message": "เปิดใช้งาน Premium"
+   },
+   "proxy_controlled_msg": {
+      "message": "ส่วนขยายอื่นกำลังบล็อก VPN ปิดใช้งานส่วนขยาย proxy/VPN อื่นและลองอีกครั้ง"
+   },
+   "recentlocations": {
+      "message": "ตำแหน่งล่าสุด"
+   },
+   "remove_license_label": {
+      "message": "ลบใบอนุญาต"
+   },
+   "retry_btn": {
+      "message": "ลองอีกครั้ง"
+   },
+   "server_unavailable_msg": {
+      "message": "เซิร์ฟเวอร์นี้ไม่พร้อมใช้งาน กรุณาเลือกตำแหน่งอื่น"
+   },
+   "success_key_msg": {
+      "message": "ขอบคุณที่เปิดใช้งาน Hide My IP!"
+   },
+   "textarea_placeholder": {
+      "message": "กรุณาป้อนรหัสลิขสิทธิ์ที่นี่"
+   },
+   "this_location_label": {
+      "message": "ตำแหน่งนี้"
+   },
+   "unavailable_location_msg": {
+      "message": "{name} ไม่พร้อมใช้งานในขณะนี้ กรุณาเลือกตำแหน่งอื่น"
+   },
+   "unlock_label": {
+      "message": "ปลดล็อก Premium"
+   },
+   "verify_failed_msg": {
+      "message": "ไม่สามารถตรวจสอบการเชื่อมต่อได้ ลองตำแหน่งอื่น"
+   },
+   "verify_location_failed_msg": {
+      "message": "ไม่สามารถยืนยันการเชื่อมต่อกับ {name} ได้ กรุณาเลือกตำแหน่งอื่น"
+   },
+   "verifying_label": {
+      "message": "กำลังตรวจสอบ..."
+   },
+   "webrtclabel": {
+      "message": "ป้องกันการรั่วไหลของ IP WebRTC"
+   }
+}

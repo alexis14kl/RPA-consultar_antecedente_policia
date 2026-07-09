@@ -1,0 +1,125 @@
+{
+   "alllocations": {
+      "message": "Alle beschikbare locaties"
+   },
+   "btn_back": {
+      "message": "Terug"
+   },
+   "btn_buy": {
+      "message": "Licentie kopen"
+   },
+   "btn_enter_license_key": {
+      "message": "Voer licentiesleutel in"
+   },
+   "buy_label": {
+      "message": "Licentie kopen"
+   },
+   "cancel_btn": {
+      "message": "Annuleren"
+   },
+   "change_license_label": {
+      "message": "Licentie wijzigen"
+   },
+   "check_my_ip_label": {
+      "message": "Mijn IP controleren"
+   },
+   "connect_failed_msg": {
+      "message": "Kan op dit moment geen verbinding maken met {name}. Probeer het opnieuw of kies een andere locatie."
+   },
+   "connected_label": {
+      "message": "Verbonden"
+   },
+   "connecting_msg": {
+      "message": "Verbinden..."
+   },
+   "disconnected_label": {
+      "message": "Verbinding verbroken"
+   },
+   "enter_license_menu_label": {
+      "message": "Licentie invoeren"
+   },
+   "error_msg": {
+      "message": "Kon proxy-gegevens niet ophalen, probeer het opnieuw."
+   },
+   "fetch_error_msg": {
+      "message": "Kan serverlijst niet laden. Uw provider blokkeert mogelijk de VPN-service. Probeer mobiele data of een ander netwerk, klik daarna Opnieuw proberen."
+   },
+   "hide_my_ip_label": {
+      "message": "Hide My IP"
+   },
+   "invalid_key_msg": {
+      "message": "Ongeldige sleutel."
+   },
+   "killed_banner_msg": {
+      "message": "De server {country} werd onbereikbaar en is losgekoppeld. Kies een andere locatie."
+   },
+   "killswitch_label": {
+      "message": "Noodschakelaar"
+   },
+   "last_location_label": {
+      "message": "Laatste locatie"
+   },
+   "leak_detected_msg": {
+      "message": "Verbindingscontrole mislukt — uw IP is niet gewijzigd. Probeer een andere server."
+   },
+   "leak_location_msg": {
+      "message": "Kan de verbinding met {name} niet bevestigen — je IP is niet veranderd. Kies een andere locatie."
+   },
+   "license_removed_msg": {
+      "message": "Licentie verwijderd."
+   },
+   "no_more_servers_msg": {
+      "message": "Geen servers meer om te proberen. Probeer later opnieuw."
+   },
+   "please_enter_key_msg": {
+      "message": "Voer een licentiesleutel in."
+   },
+   "please_upgrade_msg": {
+      "message": "Upgrade om deze premiumlocatie te gebruiken"
+   },
+   "premium_active_label_popover": {
+      "message": "Premium actief"
+   },
+   "proxy_controlled_msg": {
+      "message": "Een andere extensie blokkeert de VPN. Schakel andere proxy/VPN-extensies uit en probeer opnieuw."
+   },
+   "recentlocations": {
+      "message": "Recente locaties"
+   },
+   "remove_license_label": {
+      "message": "Licentie verwijderen"
+   },
+   "retry_btn": {
+      "message": "Opnieuw proberen"
+   },
+   "server_unavailable_msg": {
+      "message": "Deze server is niet beschikbaar. Kies een andere locatie."
+   },
+   "success_key_msg": {
+      "message": "Bedankt voor het activeren van Hide My IP!"
+   },
+   "textarea_placeholder": {
+      "message": "Voer hier de licentiecode in"
+   },
+   "this_location_label": {
+      "message": "deze locatie"
+   },
+   "unavailable_location_msg": {
+      "message": "{name} is momenteel niet beschikbaar. Kies een andere locatie."
+   },
+   "unlock_label": {
+      "message": "Premium ontgrendelen"
+   },
+   "verify_failed_msg": {
+      "message": "Kan de verbinding niet verifiëren. Probeer een andere locatie."
+   },
+   "verify_location_failed_msg": {
+      "message": "Kan de verbinding met {name} niet verifiëren. Kies een andere locatie."
+   },
+   "verifying_label": {
+      "message": "Verifiëren..."
+   },
+   "webrtclabel": {
+      "message": "Voorkom WebRTC IP-lek"
+   }
+}

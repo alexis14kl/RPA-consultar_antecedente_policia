@@ -1,0 +1,115 @@
+{
+  "connecting_msg": {
+    "message": "Միացում..."
+  },
+  "connected_label": {
+    "message": "Միացված է"
+  },
+  "disconnected_label": {
+    "message": "Անջատված է"
+  },
+  "last_location_label": {
+    "message": "Վերջին վայրը"
+  },
+  "verifying_label": {
+    "message": "Ստուգում..."
+  },
+  "hide_my_ip_label": {
+    "message": "Hide My IP"
+  },
+  "premium_active_label_popover": {
+    "message": "Premium-ը ակտիվ է"
+  },
+  "textarea_placeholder": {
+    "message": "Խնդրում ենք մուտքագրել լիցենզիայի կոդը այստեղ"
+  },
+  "please_upgrade_msg": {
+    "message": "Բարելավեք՝ այս պրեմիում վայրն օգտագործելու համար։"
+  },
+  "buy_label": {
+    "message": "Գնել լիցենզիա"
+  },
+  "webrtclabel": {
+    "message": "Կանխել WebRTC IP արտահոսքը"
+  },
+  "license_removed_msg": {
+    "message": "Լիցենզիան հեռացված է։"
+  },
+  "btn_enter_license_key": {
+    "message": "Մուտքագրեք արտոնագրի բանալին"
+  },
+  "success_key_msg": {
+    "message": "Շնորհակալություն Hide My IP ակտիվացնելու համար!"
+  },
+  "invalid_key_msg": {
+    "message": "Անվավեր բանալին."
+  },
+  "please_enter_key_msg": {
+    "message": "Խնդրում ենք մուտքագրել լիցենզիայի բանալին։"
+  },
+  "recentlocations": {
+    "message": "Վերջին վայրեր"
+  },
+  "btn_back": {
+    "message": "Հետ"
+  },
+  "cancel_btn": {
+    "message": "Չեղարկել"
+  },
+  "btn_buy": {
+    "message": "Գնել լիցենզիա"
+  },
+  "alllocations": {
+    "message": "Բոլոր հասանելի վայրերը"
+  },
+  "unlock_label": {
+    "message": "Ապակողպել Premium-ը"
+  },
+  "error_msg": {
+    "message": "Չհաջողվեց ստանալ proxy-ի հավատարմագրերը, փորձեք կրկին։"
+  },
+  "fetch_error_msg": {
+    "message": "Չհաջողվեց բեռնել սերվերների ցանկը։ Ձեր ինտերնետ պրովայդերը կարող է արգելափակել VPN ծառայությունը։ Փորձեք բջջային ինտերնետը կամ այլ ցանց, ապա սեղմեք Կրկնել։"
+  },
+  "retry_btn": {
+    "message": "Կրկնել"
+  },
+  "enter_license_menu_label": {
+    "message": "Մուտքագրել լիցենզիա"
+  },
+  "check_my_ip_label": {
+    "message": "Ստուգել իմ IP-ն"
+  },
+  "change_license_label": {
+    "message": "Փոխել լիցենզիան"
+  },
+  "remove_license_label": {
+    "message": "Հեռացնել լիցենզիան"
+  },
+  "server_unavailable_msg": {
+    "message": "Այս սերվերը հասանելի չէ։ Խնդրում ենք ընտրել այլ վայր։"
+  },
+  "no_more_servers_msg": {
+    "message": "Այլ սերվերներ չկան փորձելու։ Խնդրում ենք փորձել ավելի ուշ։"
+  },
+  "proxy_controlled_msg": {
+    "message": "Այլ ընդլայնում արգելափակում է VPN-ը։ Անջատեք այլ proxy/VPN ընդլայնումները և փորձեք նորից։"
+  },
+  "leak_detected_msg": {
+    "message": "Կապի ստուգումը ձախողվեց — ձեր IP-ն չփոխվեց։ Փորձեք այլ սերվեր։"
+  },
+  "verify_failed_msg": {
+    "message": "Չհաջողվեց ստուգել կապը։ Փորձեք այլ վայր։"
+  },
+  "killswitch_label": {
+    "message": "Անվտանգության անջատիչ"
+  },
+  "killed_banner_msg": {
+    "message": "{country} սերվերը անհասանելի դարձավ և անջատվեց։ Խնդրում ենք ընտրել այլ վայր։"
+  },
+  "connect_failed_msg": { "message": "Չհաջողվեց միանալ {name}-ին հենց հիմա: Փորձեք կրկին կամ ընտրեք այլ վայր:" },
+  "unavailable_location_msg": { "message": "{name}-ը ներկայումս հասանելի չէ: Խնդրում ենք ընտրել այլ վայր:" },
+  "verify_location_failed_msg": { "message": "Չհաջողվեց հաստատել կապը {name}-ի հետ: Խնդրում ենք ընտրել այլ վայր:" },
+  "leak_location_msg": { "message": "Չհաջողվեց հաստատել կապը {name}-ի հետ — ձեր IP-ն չի փոխվել: Խնդրում ենք ընտրել այլ վայր:" },
+  "this_location_label": { "message": "այս վայրը" }
+}

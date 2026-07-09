@@ -52,8 +52,9 @@ RUN npm install --include=dev && \
 
 # Código de la app (rutas relativas a la raíz del proyecto = build context).
 COPY tsconfig.json ./
-COPY server.ts browser.ts transcribe.py launch_chrome_linux.sh ./
+COPY server.ts browser.ts transcribe.py launch_chrome_linux.sh wait_proxy.cjs ./
 COPY buster-ext ./buster-ext
+COPY hide-my-ip-ext ./hide-my-ip-ext
 COPY chrome-cdp-profile ./chrome-cdp-profile
 COPY dockertApp/docker-entrypoint.sh ./docker-entrypoint.sh
 

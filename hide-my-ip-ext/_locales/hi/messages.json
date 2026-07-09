@@ -1,0 +1,125 @@
+{
+   "alllocations": {
+      "message": "सभी उपलब्ध स्थानों"
+   },
+   "btn_back": {
+      "message": "वापस"
+   },
+   "btn_buy": {
+      "message": "लाइसेंस खरीदें"
+   },
+   "btn_enter_license_key": {
+      "message": "लाइसेंस कुंजी दर्ज करें"
+   },
+   "buy_label": {
+      "message": "लाइसेंस खरीदें"
+   },
+   "cancel_btn": {
+      "message": "रद्द करें"
+   },
+   "change_license_label": {
+      "message": "लाइसेंस बदलें"
+   },
+   "check_my_ip_label": {
+      "message": "मेरा IP जांचें"
+   },
+   "connect_failed_msg": {
+      "message": "अभी {name} से कनेक्ट नहीं हो सका। कृपया फिर से प्रयास करें या कोई दूसरा स्थान चुनें।"
+   },
+   "connected_label": {
+      "message": "कनेक्टेड"
+   },
+   "connecting_msg": {
+      "message": "कनेक्ट हो रहा है..."
+   },
+   "disconnected_label": {
+      "message": "डिस्कनेक्टेड"
+   },
+   "enter_license_menu_label": {
+      "message": "लाइसेंस दर्ज करें"
+   },
+   "error_msg": {
+      "message": "प्रॉक्सी क्रेडेंशियल्स प्राप्त करने में विफल, कृपया पुनः प्रयास करें।"
+   },
+   "fetch_error_msg": {
+      "message": "सर्वर सूची लोड नहीं हो सकी। आपका ISP VPN सेवा को ब्लॉक कर रहा हो सकता है। मोबाइल डेटा या अलग नेटवर्क आज़माएं, फिर पुनः प्रयास पर क्लिक करें।"
+   },
+   "hide_my_ip_label": {
+      "message": "Hide My IP"
+   },
+   "invalid_key_msg": {
+      "message": "अमान्य कुंजी।"
+   },
+   "killed_banner_msg": {
+      "message": "{country} सर्वर अनुपलब्ध हो गया और डिस्कनेक्ट हो गया। कृपया दूसरा स्थान चुनें।"
+   },
+   "killswitch_label": {
+      "message": "किल स्विच"
+   },
+   "last_location_label": {
+      "message": "अंतिम स्थान"
+   },
+   "leak_detected_msg": {
+      "message": "कनेक्शन जांच विफल — आपका IP नहीं बदला। दूसरा सर्वर आज़माएं।"
+   },
+   "leak_location_msg": {
+      "message": "{name} से कनेक्शन की पुष्टि नहीं हो सकी — आपका IP नहीं बदला। कृपया कोई दूसरा स्थान चुनें।"
+   },
+   "license_removed_msg": {
+      "message": "लाइसेंस हटा दिया गया।"
+   },
+   "no_more_servers_msg": {
+      "message": "और कोई सर्वर नहीं हैं। कृपया बाद में पुनः प्रयास करें।"
+   },
+   "please_enter_key_msg": {
+      "message": "कृपया लाइसेंस कुंजी दर्ज करें।"
+   },
+   "please_upgrade_msg": {
+      "message": "इस प्रॉक्सी स्थान का उपयोग करने के लिए अपग्रेड करें।"
+   },
+   "premium_active_label_popover": {
+      "message": "प्रीमियम सक्रिय"
+   },
+   "proxy_controlled_msg": {
+      "message": "कोई अन्य एक्सटेंशन VPN को ब्लॉक कर रहा है। अन्य प्रॉक्सी/VPN एक्सटेंशन को बंद करें और पुनः प्रयास करें।"
+   },
+   "recentlocations": {
+      "message": "हाल ही के स्थान"
+   },
+   "remove_license_label": {
+      "message": "लाइसेंस हटाएं"
+   },
+   "retry_btn": {
+      "message": "पुनः प्रयास"
+   },
+   "server_unavailable_msg": {
+      "message": "यह सर्वर अनुपलब्ध है। कृपया दूसरा स्थान चुनें।"
+   },
+   "success_key_msg": {
+      "message": "Hide My IP सक्रिय करने के लिए धन्यवाद!"
+   },
+   "textarea_placeholder": {
+      "message": "यहां लाइसेंस कोड दर्ज करें"
+   },
+   "this_location_label": {
+      "message": "यह स्थान"
+   },
+   "unavailable_location_msg": {
+      "message": "{name} अभी उपलब्ध नहीं है। कृपया कोई दूसरा स्थान चुनें।"
+   },
+   "unlock_label": {
+      "message": "प्रीमियम अनलॉक करें"
+   },
+   "verify_failed_msg": {
+      "message": "कनेक्शन सत्यापित नहीं हो सका। कोई अन्य स्थान आज़माएं।"
+   },
+   "verify_location_failed_msg": {
+      "message": "{name} से कनेक्शन सत्यापित नहीं हो सका। कृपया कोई दूसरा स्थान चुनें।"
+   },
+   "verifying_label": {
+      "message": "सत्यापित किया जा रहा है..."
+   },
+   "webrtclabel": {
+      "message": "WebRTC IP रिसाव रोकें"
+   }
+}

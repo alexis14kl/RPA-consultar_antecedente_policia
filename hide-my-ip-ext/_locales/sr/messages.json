@@ -1,0 +1,125 @@
+{
+   "alllocations": {
+      "message": "Sve dostupne lokacije"
+   },
+   "btn_back": {
+      "message": "Nazad"
+   },
+   "btn_buy": {
+      "message": "Kupite licencu"
+   },
+   "btn_enter_license_key": {
+      "message": "Unesite licencni ključ"
+   },
+   "buy_label": {
+      "message": "Купи лиценцу"
+   },
+   "cancel_btn": {
+      "message": "Откажи"
+   },
+   "change_license_label": {
+      "message": "Промени лиценцу"
+   },
+   "check_my_ip_label": {
+      "message": "Провери мој IP"
+   },
+   "connect_failed_msg": {
+      "message": "Trenutno nije moguće povezati se sa {name}. Pokušajte ponovo ili izaberite drugu lokaciju."
+   },
+   "connected_label": {
+      "message": "Повезано"
+   },
+   "connecting_msg": {
+      "message": "Повезивање..."
+   },
+   "disconnected_label": {
+      "message": "Прекинута веза"
+   },
+   "enter_license_menu_label": {
+      "message": "Унесите лиценцу"
+   },
+   "error_msg": {
+      "message": "Није успело преузимање проки акредитива, покушајте поново."
+   },
+   "fetch_error_msg": {
+      "message": "Није могуће учитати листу сервера. Ваш провајдер можда блокира VPN сервис. Покушајте мобилни интернет или другу мрежу, затим кликните Покушај поново."
+   },
+   "hide_my_ip_label": {
+      "message": "Hide My IP"
+   },
+   "invalid_key_msg": {
+      "message": "Nevažeći ključ."
+   },
+   "killed_banner_msg": {
+      "message": "Сервер {country} је постао недоступан и веза је прекинута. Молимо изаберите другу локацију."
+   },
+   "killswitch_label": {
+      "message": "Прекидач за случај нужде"
+   },
+   "last_location_label": {
+      "message": "Последња локација"
+   },
+   "leak_detected_msg": {
+      "message": "Провера везе није успела — ваш IP се није променио. Покушајте са другим сервером."
+   },
+   "leak_location_msg": {
+      "message": "Nije moguće potvrditi vezu sa {name} — vaša IP adresa se nije promenila. Izaberite drugu lokaciju."
+   },
+   "license_removed_msg": {
+      "message": "Лиценца уклоњена."
+   },
+   "no_more_servers_msg": {
+      "message": "Нема више сервера за покушај. Молимо покушајте касније."
+   },
+   "please_enter_key_msg": {
+      "message": "Молимо унесите лиценцни кључ."
+   },
+   "please_upgrade_msg": {
+      "message": "Nadogradite da biste koristili ovu premium lokaciju"
+   },
+   "premium_active_label_popover": {
+      "message": "Premium активан"
+   },
+   "proxy_controlled_msg": {
+      "message": "Друго проширење блокира VPN. Онемогућите друга proxy/VPN проширења и покушајте поново."
+   },
+   "recentlocations": {
+      "message": "Nedavne lokacije"
+   },
+   "remove_license_label": {
+      "message": "Уклони лиценцу"
+   },
+   "retry_btn": {
+      "message": "Покушај поново"
+   },
+   "server_unavailable_msg": {
+      "message": "Овај сервер је недоступан. Молимо изаберите другу локацију."
+   },
+   "success_key_msg": {
+      "message": "Hvala što ste aktivirali Hide My IP!"
+   },
+   "textarea_placeholder": {
+      "message": "Unesite licencni kod ovde"
+   },
+   "this_location_label": {
+      "message": "ova lokacija"
+   },
+   "unavailable_location_msg": {
+      "message": "{name} trenutno nije dostupna. Izaberite drugu lokaciju."
+   },
+   "unlock_label": {
+      "message": "Откључај Premium"
+   },
+   "verify_failed_msg": {
+      "message": "Није могуће верификовати везу. Покушајте другу локацију."
+   },
+   "verify_location_failed_msg": {
+      "message": "Nije moguće potvrditi vezu sa {name}. Izaberite drugu lokaciju."
+   },
+   "verifying_label": {
+      "message": "Провера..."
+   },
+   "webrtclabel": {
+      "message": "Spriječite WebRTC IP curenje"
+   }
+}

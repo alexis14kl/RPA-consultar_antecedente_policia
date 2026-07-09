@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel='stylesheet' type='text/css' href='font-awesome.min.css'>
+  <link rel="stylesheet" type="text/css" href="styles.css">
+</head>
+<body>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <div id="banner" class="banner" role="status" aria-live="polite" hidden>
+    <span class="banner-ico" aria-hidden="true">✓</span>
+    <span class="banner-msg" id="banner-msg"></span>
+    <span class="banner-close" id="banner-close" role="button" aria-label="Dismiss" tabindex="0">×</span>
+  </div>
+
+  <div id="proxy-status-container" class="status-row" tabindex="0">
+    <span class="menu-item-subitem">
+      <span id="proxy-status-flag" class="menu-flag" aria-hidden="true"></span>
+      <span class="menu-item-text">
+        <span id="proxy-status-meta" class="status-meta">Disconnected</span>
+        <span id="proxy-status-text">Hide My IP</span>
+      </span>
+      <label class="switch" aria-label="Toggle proxy">
+        <input type="checkbox" id="proxy-status-toggle" role="switch" aria-checked="false">
+        <span class="slider round" aria-hidden="true"></span>
+      </label>
+      <button type="button" id="btn_settings" class="icon-btn" aria-label="Settings" aria-haspopup="true" aria-expanded="false">
+        <i class="fa fa-cog" aria-hidden="true"></i>
+      </button>
+    </span>
+  </div>
+
+  <div id="settings-popover" class="popover" hidden role="menu" aria-labelledby="btn_settings">
+    <div class="popover-section">
+      <button type="button" class="popover-action" id="btn_check_ip">
+        <i class="fa fa-search" aria-hidden="true"></i> <span id="check_my_ip_label">Check My IP</span>
+      </button>
+      <div class="popover-divider"></div>
+    </div>
+    <div class="popover-section" id="popover-license" hidden>
+      <div class="popover-info">
+        <i class="fa fa-check-circle" aria-hidden="true"></i>
+        <span id="premium_active_label_popover">Premium Active</span>
+      </div>
+      <button type="button" class="popover-action" id="btn_change_license">
+        <i class="fa fa-key" aria-hidden="true"></i> <span id="change_license_label">Change License</span>
+      </button>
+      <button type="button" class="popover-action danger" id="btn_remove_license">
+        <i class="fa fa-times" aria-hidden="true"></i> <span id="remove_license_label">Remove License</span>
+      </button>
+      <div class="popover-divider"></div>
+    </div>
+    <div class="popover-section" id="popover-license-free" hidden>
+      <button type="button" class="popover-action" id="btn_enter_license_menu">
+        <i class="fa fa-key" aria-hidden="true"></i> <span id="enter_license_menu_label">Enter License</span>
+      </button>
+      <div class="popover-divider"></div>
+    </div>
+    <label class="popover-row" for="checkbox_killswitch">
+      <input type="checkbox" id="checkbox_killswitch" name="killswitch">
+      <span id="killswitch_label">Kill Switch</span>
+    </label>
+    <label class="popover-row" for="checkbox1">
+      <input type="checkbox" id="checkbox1" name="preventleak">
+      <span id="webrtclabel">Prevent WebRTC IP Leak</span>
+    </label>
+  </div>
+
+  <div id="killed-banner" class="killed-banner" hidden role="alert">
+    <div class="killed-banner-text" id="killed_banner_text">Server became unavailable and was disconnected. Please pick another location.</div>
+    <button type="button" class="killed-banner-close" id="killed_banner_close" aria-label="Dismiss">&times;</button>
+  </div>
+
+  <div id="proxy-list">
+    <div class="section-label" id="recentlocations">Recent Locations</div>
+    <div id="recent-locations"></div>
+
+    <div class="section-label" id="alllocations">All Available Locations</div>
+    <div id="all-locations"></div>
+  </div>
+
+  <footer id="footer">
+    <div id="footer-main">
+      <div class="license-state" id="license-state-locked">
+        <button type="button" class="footer-btn primary" id="btn_unlock">
+          <i class="fa fa-unlock-alt" aria-hidden="true"></i>
+          <span id="unlock_label">Unlock Premium</span>
+        </button>
+        <button type="button" class="footer-btn ghost" id="btn_buy">
+          <i class="fa fa-shopping-cart" aria-hidden="true"></i>
+          <span id="buy_label">Purchase License</span>
+        </button>
+      </div>
+    </div>
+
+    <div id="enter-code-div" hidden>
+      <textarea id="textarea_key" cols="29" maxlength="29" class="input" placeholder='XXXX-XXXX-XXXX-XXXX-XXXX-XXXX' aria-label="License key"></textarea>
+      <div class="row">
+        <button type="button" id="btn_back" class="footer-btn ghost">
+          <span id="cancel_btn">Cancel</span>
+        </button>
+        <button type="button" id="btn_enterkey" class="footer-btn primary">
+          <i class="fa fa-key" aria-hidden="true"></i>
+          <span id="btn_enter_license_key">Save</span>
+        </button>
+      </div>
+    </div>
+
+  </footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>

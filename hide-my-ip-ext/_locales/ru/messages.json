@@ -1,0 +1,125 @@
+{
+   "alllocations": {
+      "message": "Все доступные местоположения"
+   },
+   "btn_back": {
+      "message": "Назад"
+   },
+   "btn_buy": {
+      "message": "Купить лицензию"
+   },
+   "btn_enter_license_key": {
+      "message": "Активировать"
+   },
+   "buy_label": {
+      "message": "Купить лицензию"
+   },
+   "cancel_btn": {
+      "message": "Отмена"
+   },
+   "change_license_label": {
+      "message": "Сменить лицензию"
+   },
+   "check_my_ip_label": {
+      "message": "Проверить мой IP"
+   },
+   "connect_failed_msg": {
+      "message": "Сейчас не удалось подключиться к {name}. Попробуйте ещё раз или выберите другое местоположение."
+   },
+   "connected_label": {
+      "message": "Подключено"
+   },
+   "connecting_msg": {
+      "message": "Подключение..."
+   },
+   "disconnected_label": {
+      "message": "Отключено"
+   },
+   "enter_license_menu_label": {
+      "message": "Ввести лицензию"
+   },
+   "error_msg": {
+      "message": "Не удалось получить учетные данные прокси, попробуйте снова."
+   },
+   "fetch_error_msg": {
+      "message": "Не удалось загрузить список серверов. Ваш интернет-провайдер может блокировать VPN-сервис. Попробуйте мобильный интернет или другую сеть, затем нажмите «Повторить»."
+   },
+   "hide_my_ip_label": {
+      "message": "Hide My IP"
+   },
+   "invalid_key_msg": {
+      "message": "Недействительный ключ."
+   },
+   "killed_banner_msg": {
+      "message": "Сервер {country} стал недоступен и был отключён. Пожалуйста, выберите другое местоположение."
+   },
+   "killswitch_label": {
+      "message": "Аварийное отключение"
+   },
+   "last_location_label": {
+      "message": "Последнее местоположение"
+   },
+   "leak_detected_msg": {
+      "message": "Проверка соединения не пройдена — IP не изменился. Попробуйте другой сервер."
+   },
+   "leak_location_msg": {
+      "message": "Не удалось подтвердить подключение к {name} — ваш IP не изменился. Выберите другое местоположение."
+   },
+   "license_removed_msg": {
+      "message": "Лицензия удалена."
+   },
+   "no_more_servers_msg": {
+      "message": "Больше нет серверов для попыток. Пожалуйста, попробуйте позже."
+   },
+   "please_enter_key_msg": {
+      "message": "Пожалуйста, введите лицензионный ключ."
+   },
+   "please_upgrade_msg": {
+      "message": "Обновитесь для использования этого премиум-местоположения"
+   },
+   "premium_active_label_popover": {
+      "message": "Premium активен"
+   },
+   "proxy_controlled_msg": {
+      "message": "Другое расширение блокирует VPN. Отключите другие прокси/VPN-расширения и попробуйте снова."
+   },
+   "recentlocations": {
+      "message": "Недавние местоположения"
+   },
+   "remove_license_label": {
+      "message": "Удалить лицензию"
+   },
+   "retry_btn": {
+      "message": "Повторить"
+   },
+   "server_unavailable_msg": {
+      "message": "Этот сервер недоступен. Пожалуйста, выберите другое местоположение."
+   },
+   "success_key_msg": {
+      "message": "Спасибо за активацию Hide My IP!"
+   },
+   "textarea_placeholder": {
+      "message": "Пожалуйста, введите лицензионный код здесь"
+   },
+   "this_location_label": {
+      "message": "это местоположение"
+   },
+   "unavailable_location_msg": {
+      "message": "{name} сейчас недоступно. Выберите другое местоположение."
+   },
+   "unlock_label": {
+      "message": "Разблокировать Premium"
+   },
+   "verify_failed_msg": {
+      "message": "Не удалось проверить соединение. Попробуйте другое местоположение."
+   },
+   "verify_location_failed_msg": {
+      "message": "Не удалось проверить подключение к {name}. Выберите другое местоположение."
+   },
+   "verifying_label": {
+      "message": "Проверка..."
+   },
+   "webrtclabel": {
+      "message": "Блокировать WebRTC"
+   }
+}

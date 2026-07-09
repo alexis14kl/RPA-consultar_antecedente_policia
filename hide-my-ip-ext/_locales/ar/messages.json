@@ -1,0 +1,125 @@
+{
+   "alllocations": {
+      "message": "جميع المواقع المتاحة"
+   },
+   "btn_back": {
+      "message": "رجوع"
+   },
+   "btn_buy": {
+      "message": "شراء الترخيص"
+   },
+   "btn_enter_license_key": {
+      "message": "أدخل مفتاح الترخيص"
+   },
+   "buy_label": {
+      "message": "شراء ترخيص"
+   },
+   "cancel_btn": {
+      "message": "إلغاء"
+   },
+   "change_license_label": {
+      "message": "تغيير الترخيص"
+   },
+   "check_my_ip_label": {
+      "message": "تحقق من عنوان IP الخاص بي"
+   },
+   "connect_failed_msg": {
+      "message": "تعذّر الاتصال بـ {name} الآن. الرجاء المحاولة مرة أخرى أو اختيار موقع آخر."
+   },
+   "connected_label": {
+      "message": "متصل"
+   },
+   "connecting_msg": {
+      "message": "جارٍ الاتصال..."
+   },
+   "disconnected_label": {
+      "message": "غير متصل"
+   },
+   "enter_license_menu_label": {
+      "message": "إدخال الترخيص"
+   },
+   "error_msg": {
+      "message": "فشل في جلب بيانات الوكيل، يرجى المحاولة مرة أخرى."
+   },
+   "fetch_error_msg": {
+      "message": "تعذّر تحميل قائمة الخوادم. قد يحجب مزوّد الإنترنت خدمة VPN. جرّب بيانات الجوّال أو شبكة مختلفة، ثم انقر إعادة المحاولة."
+   },
+   "hide_my_ip_label": {
+      "message": "Hide My IP"
+   },
+   "invalid_key_msg": {
+      "message": "مفتاح غير صالح."
+   },
+   "killed_banner_msg": {
+      "message": "أصبح خادم {country} غير متاح وتم قطع الاتصال. يرجى اختيار موقع آخر."
+   },
+   "killswitch_label": {
+      "message": "مفتاح الإيقاف"
+   },
+   "last_location_label": {
+      "message": "آخر موقع"
+   },
+   "leak_detected_msg": {
+      "message": "فشل فحص الاتصال — لم يتغيّر عنوان IP. جرّب خادماً آخر."
+   },
+   "leak_location_msg": {
+      "message": "تعذّر تأكيد الاتصال بـ {name} — لم يتغير عنوان IP. الرجاء اختيار موقع آخر."
+   },
+   "license_removed_msg": {
+      "message": "تمت إزالة الترخيص."
+   },
+   "no_more_servers_msg": {
+      "message": "لا توجد خوادم أخرى للمحاولة. يرجى المحاولة لاحقاً."
+   },
+   "please_enter_key_msg": {
+      "message": "يرجى إدخال مفتاح الترخيص."
+   },
+   "please_upgrade_msg": {
+      "message": "قم بالترقية لاستخدام هذا الموقع المميز"
+   },
+   "premium_active_label_popover": {
+      "message": "البريميوم مفعّل"
+   },
+   "proxy_controlled_msg": {
+      "message": "إضافة أخرى تحجب VPN. عطّل إضافات الوكيل/VPN الأخرى وحاول مجدداً."
+   },
+   "recentlocations": {
+      "message": "المواقع الحديثة"
+   },
+   "remove_license_label": {
+      "message": "إزالة الترخيص"
+   },
+   "retry_btn": {
+      "message": "إعادة المحاولة"
+   },
+   "server_unavailable_msg": {
+      "message": "هذا الخادم غير متاح. يرجى اختيار موقع آخر."
+   },
+   "success_key_msg": {
+      "message": "شكراً لتفعيل Hide My IP!"
+   },
+   "textarea_placeholder": {
+      "message": "يرجى إدخال رمز الترخيص هنا"
+   },
+   "this_location_label": {
+      "message": "هذا الموقع"
+   },
+   "unavailable_location_msg": {
+      "message": "{name} غير متوفر حاليًا. الرجاء اختيار موقع آخر."
+   },
+   "unlock_label": {
+      "message": "فتح البريميوم"
+   },
+   "verify_failed_msg": {
+      "message": "تعذّر التحقق من الاتصال. جرّب موقعاً آخر."
+   },
+   "verify_location_failed_msg": {
+      "message": "تعذّر التحقق من الاتصال بـ {name}. الرجاء اختيار موقع آخر."
+   },
+   "verifying_label": {
+      "message": "جاري التحقق..."
+   },
+   "webrtclabel": {
+      "message": "منع تسرب IP عبر WebRTC"
+   }
+}

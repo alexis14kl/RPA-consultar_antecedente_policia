@@ -1,0 +1,125 @@
+{
+   "alllocations": {
+      "message": "כל המיקומים הזמינים"
+   },
+   "btn_back": {
+      "message": "חזור"
+   },
+   "btn_buy": {
+      "message": "קנה רישוי"
+   },
+   "btn_enter_license_key": {
+      "message": "הכנס מפתח רישוי"
+   },
+   "buy_label": {
+      "message": "רכוש רישיון"
+   },
+   "cancel_btn": {
+      "message": "ביטול"
+   },
+   "change_license_label": {
+      "message": "החלף רישיון"
+   },
+   "check_my_ip_label": {
+      "message": "בדוק את ה-IP שלי"
+   },
+   "connect_failed_msg": {
+      "message": "לא ניתן להתחבר אל {name} כעת. נסה שוב או בחר מיקום אחר."
+   },
+   "connected_label": {
+      "message": "מחובר"
+   },
+   "connecting_msg": {
+      "message": "מתחבר..."
+   },
+   "disconnected_label": {
+      "message": "מנותק"
+   },
+   "enter_license_menu_label": {
+      "message": "הזן רישיון"
+   },
+   "error_msg": {
+      "message": "שליפת אישורי proxy נכשלה, נסה שוב."
+   },
+   "fetch_error_msg": {
+      "message": "לא ניתן לטעון את רשימת השרתים. ייתכן שספק האינטרנט שלך חוסם את שירות ה-VPN. נסה נתונים סלולריים או רשת אחרת, ואז לחץ נסה שוב."
+   },
+   "hide_my_ip_label": {
+      "message": "Hide My IP"
+   },
+   "invalid_key_msg": {
+      "message": "מפתח לא חוקי."
+   },
+   "killed_banner_msg": {
+      "message": "שרת {country} הפך לבלתי זמין והחיבור נותק. אנא בחר מיקום אחר."
+   },
+   "killswitch_label": {
+      "message": "מתג חירום"
+   },
+   "last_location_label": {
+      "message": "מיקום אחרון"
+   },
+   "leak_detected_msg": {
+      "message": "בדיקת חיבור נכשלה — ה-IP לא השתנה. נסה שרת אחר."
+   },
+   "leak_location_msg": {
+      "message": "לא ניתן לאשר את החיבור אל {name} — כתובת ה-IP שלך לא השתנתה. בחר מיקום אחר."
+   },
+   "license_removed_msg": {
+      "message": "הרישיון הוסר."
+   },
+   "no_more_servers_msg": {
+      "message": "אין עוד שרתים לנסות. אנא נסה שוב מאוחר יותר."
+   },
+   "please_enter_key_msg": {
+      "message": "אנא הזן מפתח רישיון."
+   },
+   "please_upgrade_msg": {
+      "message": "שדרג כדי להשתמש במיקום פרימיום זה"
+   },
+   "premium_active_label_popover": {
+      "message": "פרימיום פעיל"
+   },
+   "proxy_controlled_msg": {
+      "message": "הרחבה אחרת חוסמת את ה-VPN. השבת הרחבות פרוקסי/VPN אחרות ונסה שוב."
+   },
+   "recentlocations": {
+      "message": "מיקומים אחרונים"
+   },
+   "remove_license_label": {
+      "message": "הסר רישיון"
+   },
+   "retry_btn": {
+      "message": "נסה שוב"
+   },
+   "server_unavailable_msg": {
+      "message": "שרת זה אינו זמין. אנא בחר מיקום אחר."
+   },
+   "success_key_msg": {
+      "message": "תודה על הפעלת Hide My IP!"
+   },
+   "textarea_placeholder": {
+      "message": "אנא הכנס את קוד הרישוי כאן"
+   },
+   "this_location_label": {
+      "message": "מיקום זה"
+   },
+   "unavailable_location_msg": {
+      "message": "{name} אינו זמין כעת. בחר מיקום אחר."
+   },
+   "unlock_label": {
+      "message": "פתח פרימיום"
+   },
+   "verify_failed_msg": {
+      "message": "לא ניתן לאמת את החיבור. נסה מיקום אחר."
+   },
+   "verify_location_failed_msg": {
+      "message": "לא ניתן לאמת את החיבור אל {name}. בחר מיקום אחר."
+   },
+   "verifying_label": {
+      "message": "מאמת..."
+   },
+   "webrtclabel": {
+      "message": "מניעת דליפת IP של WebRTC"
+   }
+}

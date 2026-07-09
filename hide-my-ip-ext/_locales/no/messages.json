@@ -1,0 +1,125 @@
+{
+   "alllocations": {
+      "message": "Alle tilgjengelige steder"
+   },
+   "btn_back": {
+      "message": "Tilbake"
+   },
+   "btn_buy": {
+      "message": "Kjøp lisens"
+   },
+   "btn_enter_license_key": {
+      "message": "Skriv inn lisensnøkkel"
+   },
+   "buy_label": {
+      "message": "Kjøp lisens"
+   },
+   "cancel_btn": {
+      "message": "Avbryt"
+   },
+   "change_license_label": {
+      "message": "Bytt lisens"
+   },
+   "check_my_ip_label": {
+      "message": "Sjekk min IP"
+   },
+   "connect_failed_msg": {
+      "message": "Kunne ikke koble til {name} akkurat nå. Prøv igjen eller velg en annen plassering."
+   },
+   "connected_label": {
+      "message": "Tilkoblet"
+   },
+   "connecting_msg": {
+      "message": "Kobler til..."
+   },
+   "disconnected_label": {
+      "message": "Frakoblet"
+   },
+   "enter_license_menu_label": {
+      "message": "Skriv inn lisens"
+   },
+   "error_msg": {
+      "message": "Kunne ikke hente proxy-legitimasjon, prøv igjen."
+   },
+   "fetch_error_msg": {
+      "message": "Kunne ikke laste serverlisten. Internettleverandøren din kan blokkere VPN-tjenesten. Prøv mobildata eller et annet nettverk, og klikk deretter Prøv igjen."
+   },
+   "hide_my_ip_label": {
+      "message": "Hide My IP"
+   },
+   "invalid_key_msg": {
+      "message": "Ugyldig nøkkel."
+   },
+   "killed_banner_msg": {
+      "message": "Serveren {country} ble utilgjengelig og ble frakoblet. Vennligst velg et annet sted."
+   },
+   "killswitch_label": {
+      "message": "Nødbryter"
+   },
+   "last_location_label": {
+      "message": "Siste plassering"
+   },
+   "leak_detected_msg": {
+      "message": "Tilkoblingskontroll mislyktes — IP-en din endret seg ikke. Prøv en annen server."
+   },
+   "leak_location_msg": {
+      "message": "Kunne ikke bekrefte tilkoblingen til {name} — IP-en din endret seg ikke. Velg en annen plassering."
+   },
+   "license_removed_msg": {
+      "message": "Lisens fjernet."
+   },
+   "no_more_servers_msg": {
+      "message": "Ingen flere servere å prøve. Vennligst prøv igjen senere."
+   },
+   "please_enter_key_msg": {
+      "message": "Vennligst skriv inn en lisensnøkkel."
+   },
+   "please_upgrade_msg": {
+      "message": "Oppgrader for å bruke dette premiumstedet"
+   },
+   "premium_active_label_popover": {
+      "message": "Premium aktivert"
+   },
+   "proxy_controlled_msg": {
+      "message": "En annen utvidelse blokkerer VPN-en. Deaktiver andre proxy/VPN-utvidelser og prøv igjen."
+   },
+   "recentlocations": {
+      "message": "Nylige steder"
+   },
+   "remove_license_label": {
+      "message": "Fjern lisens"
+   },
+   "retry_btn": {
+      "message": "Prøv igjen"
+   },
+   "server_unavailable_msg": {
+      "message": "Denne serveren er utilgjengelig. Vennligst velg et annet sted."
+   },
+   "success_key_msg": {
+      "message": "Takk for at du aktiverte Hide My IP!"
+   },
+   "textarea_placeholder": {
+      "message": "Vennligst skriv inn lisenskoden her"
+   },
+   "this_location_label": {
+      "message": "denne plasseringen"
+   },
+   "unavailable_location_msg": {
+      "message": "{name} er ikke tilgjengelig akkurat nå. Velg en annen plassering."
+   },
+   "unlock_label": {
+      "message": "Lås opp Premium"
+   },
+   "verify_failed_msg": {
+      "message": "Kunne ikke verifisere tilkoblingen. Prøv et annet sted."
+   },
+   "verify_location_failed_msg": {
+      "message": "Kunne ikke bekrefte tilkoblingen til {name}. Velg en annen plassering."
+   },
+   "verifying_label": {
+      "message": "Verifiserer..."
+   },
+   "webrtclabel": {
+      "message": "Forhindre WebRTC IP-lekkasje"
+   }
+}

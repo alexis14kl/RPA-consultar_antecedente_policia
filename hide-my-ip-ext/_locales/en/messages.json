@@ -1,0 +1,128 @@
+{
+   "alllocations": {
+      "message": "All Available Locations"
+   },
+   "btn_back": {
+      "message": "Back"
+   },
+   "btn_buy": {
+      "message": "Purchase License"
+   },
+   "btn_enter_license_key": {
+      "message": "Save"
+   },
+   "buy_label": {
+      "message": "Purchase License"
+   },
+   "cancel_btn": {
+      "message": "Cancel"
+   },
+   "change_license_label": {
+      "message": "Change License"
+   },
+   "check_my_ip_label": {
+      "message": "Check My IP"
+   },
+   "connect_failed_msg": {
+      "message": "Couldn't connect to {name} right now. Please try again or choose another location."
+   },
+   "connected_label": {
+      "message": "Connected"
+   },
+   "connecting_msg": {
+      "message": "Connecting..."
+   },
+   "disconnected_label": {
+      "message": "Disconnected"
+   },
+   "enter_license_menu_label": {
+      "message": "Enter License"
+   },
+   "error_msg": {
+      "message": "Failed to fetch proxy credentials, please try again."
+   },
+   "fetch_error_msg": {
+      "message": "Could not load server list. Your ISP may be blocking the VPN service. Try mobile data or a different network, then click Retry."
+   },
+   "hide_my_ip_label": {
+      "message": "Hide My IP"
+   },
+   "invalid_key_msg": {
+      "message": "Invalid License Key"
+   },
+   "killed_banner_msg": {
+      "message": "{country} server became unavailable and was disconnected. Please pick another location."
+   },
+   "killswitch_label": {
+      "message": "Kill Switch"
+   },
+   "last_location_label": {
+      "message": "Last Location"
+   },
+   "leak_detected_msg": {
+      "message": "Connection check failed — your IP did not change. Try another server."
+   },
+   "leak_location_msg": {
+      "message": "Couldn't confirm the connection to {name} — your IP didn't change. Please choose another location."
+   },
+   "license_removed_msg": {
+      "message": "License removed."
+   },
+   "loading_servers_msg": {
+      "message": "Loading servers — try again in a moment."
+   },
+   "no_more_servers_msg": {
+      "message": "No more servers to try. Please try again later."
+   },
+   "please_enter_key_msg": {
+      "message": "Please enter a license key."
+   },
+   "please_upgrade_msg": {
+      "message": "Upgrade to Use this Premium Location"
+   },
+   "premium_active_label_popover": {
+      "message": "Premium Active"
+   },
+   "proxy_controlled_msg": {
+      "message": "Another extension is blocking the VPN. Disable other proxy/VPN extensions and try again."
+   },
+   "recentlocations": {
+      "message": "Recent Locations"
+   },
+   "remove_license_label": {
+      "message": "Remove License"
+   },
+   "retry_btn": {
+      "message": "Retry"
+   },
+   "server_unavailable_msg": {
+      "message": "This server is unavailable. Please pick another location."
+   },
+   "success_key_msg": {
+      "message": "Thank you for activating Hide My IP!"
+   },
+   "textarea_placeholder": {
+      "message": "Please enter the license code here"
+   },
+   "this_location_label": {
+      "message": "this location"
+   },
+   "unavailable_location_msg": {
+      "message": "{name} is currently unavailable. Please choose another location."
+   },
+   "unlock_label": {
+      "message": "Unlock Premium"
+   },
+   "verify_failed_msg": {
+      "message": "Could not verify connection. Try another location."
+   },
+   "verify_location_failed_msg": {
+      "message": "Couldn't verify the connection to {name}. Please choose another location."
+   },
+   "verifying_label": {
+      "message": "Verifying..."
+   },
+   "webrtclabel": {
+      "message": "Prevent WebRTC IP Leak"
+   }
+}

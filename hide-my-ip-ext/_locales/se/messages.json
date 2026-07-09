@@ -1,0 +1,115 @@
+{
+  "connecting_msg": {
+    "message": "Ansluter..."
+  },
+  "connected_label": {
+    "message": "Ansluten"
+  },
+  "disconnected_label": {
+    "message": "Frånkopplad"
+  },
+  "last_location_label": {
+    "message": "Senaste plats"
+  },
+  "verifying_label": {
+    "message": "Verifierar..."
+  },
+  "hide_my_ip_label": {
+    "message": "Hide My IP"
+  },
+  "premium_active_label_popover": {
+    "message": "Premium aktivt"
+  },
+  "textarea_placeholder": {
+    "message": "Vänligen ange licenskoden här"
+  },
+  "please_upgrade_msg": {
+    "message": "Uppgradera för att använda denna premiumplats"
+  },
+  "buy_label": {
+    "message": "Köp licens"
+  },
+  "webrtclabel": {
+    "message": "Förhindra WebRTC IP-läckage"
+  },
+  "license_removed_msg": {
+    "message": "Licens borttagen."
+  },
+  "btn_enter_license_key": {
+    "message": "Ange licensnyckel"
+  },
+  "success_key_msg": {
+    "message": "Tack för att du aktiverade Hide My IP!"
+  },
+  "invalid_key_msg": {
+    "message": "Ogiltig nyckel."
+  },
+  "please_enter_key_msg": {
+    "message": "Vänligen ange en licensnyckel."
+  },
+  "recentlocations": {
+    "message": "Senaste platser"
+  },
+  "btn_back": {
+    "message": "Tillbaka"
+  },
+  "cancel_btn": {
+    "message": "Avbryt"
+  },
+  "btn_buy": {
+    "message": "Köp licens"
+  },
+  "alllocations": {
+    "message": "Alla tillgängliga platser"
+  },
+  "unlock_label": {
+    "message": "Lås upp Premium"
+  },
+  "error_msg": {
+    "message": "Kunde inte hämta proxy-uppgifter, försök igen."
+  },
+  "fetch_error_msg": {
+    "message": "Kunde inte ladda serverlistan. Din internetleverantör kan blockera VPN-tjänsten. Prova mobildata eller ett annat nätverk, klicka sedan på Försök igen."
+  },
+  "retry_btn": {
+    "message": "Försök igen"
+  },
+  "enter_license_menu_label": {
+    "message": "Ange licens"
+  },
+  "check_my_ip_label": {
+    "message": "Kontrollera min IP"
+  },
+  "change_license_label": {
+    "message": "Byt licens"
+  },
+  "remove_license_label": {
+    "message": "Ta bort licens"
+  },
+  "server_unavailable_msg": {
+    "message": "Den här servern är otillgänglig. Välj en annan plats."
+  },
+  "no_more_servers_msg": {
+    "message": "Inga fler servrar att försöka. Försök igen senare."
+  },
+  "proxy_controlled_msg": {
+    "message": "Ett annat tillägg blockerar VPN. Inaktivera andra proxy/VPN-tillägg och försök igen."
+  },
+  "leak_detected_msg": {
+    "message": "Anslutningskontrollen misslyckades — din IP ändrades inte. Prova en annan server."
+  },
+  "verify_failed_msg": {
+    "message": "Kunde inte verifiera anslutningen. Prova en annan plats."
+  },
+  "killswitch_label": {
+    "message": "Nödbrytare"
+  },
+  "killed_banner_msg": {
+    "message": "Servern {country} blev otillgänglig och kopplades från. Välj en annan plats."
+  },
+  "connect_failed_msg": { "message": "Det gick inte att ansluta till {name} just nu. Försök igen eller välj en annan plats." },
+  "unavailable_location_msg": { "message": "{name} är inte tillgänglig just nu. Välj en annan plats." },
+  "verify_location_failed_msg": { "message": "Det gick inte att verifiera anslutningen till {name}. Välj en annan plats." },
+  "leak_location_msg": { "message": "Det gick inte att bekräfta anslutningen till {name} — din IP-adress ändrades inte. Välj en annan plats." },
+  "this_location_label": { "message": "denna plats" }
+}

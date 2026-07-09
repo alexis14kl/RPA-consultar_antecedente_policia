@@ -1,0 +1,125 @@
+{
+   "alllocations": {
+      "message": "所有可用位置"
+   },
+   "btn_back": {
+      "message": "返回"
+   },
+   "btn_buy": {
+      "message": "购买许可证"
+   },
+   "btn_enter_license_key": {
+      "message": "输入许可证密钥"
+   },
+   "buy_label": {
+      "message": "购买许可证"
+   },
+   "cancel_btn": {
+      "message": "取消"
+   },
+   "change_license_label": {
+      "message": "更换许可证"
+   },
+   "check_my_ip_label": {
+      "message": "检查我的 IP"
+   },
+   "connect_failed_msg": {
+      "message": "目前无法连接到 {name}。请重试或选择其他位置。"
+   },
+   "connected_label": {
+      "message": "已连接"
+   },
+   "connecting_msg": {
+      "message": "正在连接..."
+   },
+   "disconnected_label": {
+      "message": "已断开"
+   },
+   "enter_license_menu_label": {
+      "message": "输入许可证"
+   },
+   "error_msg": {
+      "message": "获取代理凭据失败，请重试。"
+   },
+   "fetch_error_msg": {
+      "message": "无法加载服务器列表。您的 ISP 可能正在阻止 VPN 服务。尝试移动数据或其他网络，然后单击重试。"
+   },
+   "hide_my_ip_label": {
+      "message": "Hide My IP"
+   },
+   "invalid_key_msg": {
+      "message": "无效的密钥。"
+   },
+   "killed_banner_msg": {
+      "message": "{country} 服务器变得不可用并已断开。请选择其他位置。"
+   },
+   "killswitch_label": {
+      "message": "紧急切断"
+   },
+   "last_location_label": {
+      "message": "最近位置"
+   },
+   "leak_detected_msg": {
+      "message": "连接检查失败 — 您的 IP 未更改。尝试其他服务器。"
+   },
+   "leak_location_msg": {
+      "message": "无法确认与 {name} 的连接——您的 IP 未更改。请选择其他位置。"
+   },
+   "license_removed_msg": {
+      "message": "已移除许可证。"
+   },
+   "no_more_servers_msg": {
+      "message": "没有更多服务器可尝试。请稍后再试。"
+   },
+   "please_enter_key_msg": {
+      "message": "请输入许可证密钥。"
+   },
+   "please_upgrade_msg": {
+      "message": "升级以使用此高级位置"
+   },
+   "premium_active_label_popover": {
+      "message": "高级版已激活"
+   },
+   "proxy_controlled_msg": {
+      "message": "另一个扩展正在阻止 VPN。禁用其他代理/VPN 扩展并重试。"
+   },
+   "recentlocations": {
+      "message": "最近位置"
+   },
+   "remove_license_label": {
+      "message": "移除许可证"
+   },
+   "retry_btn": {
+      "message": "重试"
+   },
+   "server_unavailable_msg": {
+      "message": "此服务器不可用。请选择其他位置。"
+   },
+   "success_key_msg": {
+      "message": "感谢您激活Hide My IP！"
+   },
+   "textarea_placeholder": {
+      "message": "请在此处输入许可证代码"
+   },
+   "this_location_label": {
+      "message": "此位置"
+   },
+   "unavailable_location_msg": {
+      "message": "{name} 当前不可用。请选择其他位置。"
+   },
+   "unlock_label": {
+      "message": "解锁高级版"
+   },
+   "verify_failed_msg": {
+      "message": "无法验证连接。尝试其他位置。"
+   },
+   "verify_location_failed_msg": {
+      "message": "无法验证与 {name} 的连接。请选择其他位置。"
+   },
+   "verifying_label": {
+      "message": "正在验证..."
+   },
+   "webrtclabel": {
+      "message": "防止WebRTC IP泄漏"
+   }
+}

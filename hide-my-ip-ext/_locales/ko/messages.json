@@ -1,0 +1,125 @@
+{
+   "alllocations": {
+      "message": "가능한 모든 위치"
+   },
+   "btn_back": {
+      "message": "뒤로"
+   },
+   "btn_buy": {
+      "message": "라이선스 구매"
+   },
+   "btn_enter_license_key": {
+      "message": "라이센스 키를 입력"
+   },
+   "buy_label": {
+      "message": "라이선스 구매"
+   },
+   "cancel_btn": {
+      "message": "취소"
+   },
+   "change_license_label": {
+      "message": "라이선스 변경"
+   },
+   "check_my_ip_label": {
+      "message": "내 IP 확인"
+   },
+   "connect_failed_msg": {
+      "message": "지금 {name}에 연결할 수 없습니다. 다시 시도하거나 다른 위치를 선택하세요."
+   },
+   "connected_label": {
+      "message": "연결됨"
+   },
+   "connecting_msg": {
+      "message": "연결 중..."
+   },
+   "disconnected_label": {
+      "message": "연결 해제됨"
+   },
+   "enter_license_menu_label": {
+      "message": "라이선스 입력"
+   },
+   "error_msg": {
+      "message": "프록시 자격 증명을 가져오지 못했습니다. 다시 시도해 주세요."
+   },
+   "fetch_error_msg": {
+      "message": "서버 목록을 불러올 수 없습니다. ISP가 VPN 서비스를 차단하고 있을 수 있습니다. 모바일 데이터 또는 다른 네트워크를 시도한 다음 다시 시도를 클릭하세요."
+   },
+   "hide_my_ip_label": {
+      "message": "Hide My IP"
+   },
+   "invalid_key_msg": {
+      "message": "잘못된 키입니다."
+   },
+   "killed_banner_msg": {
+      "message": "{country} 서버가 사용 불가능해져 연결이 해제되었습니다. 다른 위치를 선택하세요."
+   },
+   "killswitch_label": {
+      "message": "킬 스위치"
+   },
+   "last_location_label": {
+      "message": "최근 위치"
+   },
+   "leak_detected_msg": {
+      "message": "연결 확인 실패 — IP가 변경되지 않았습니다. 다른 서버를 시도하세요."
+   },
+   "leak_location_msg": {
+      "message": "{name}에 대한 연결을 확인할 수 없습니다 — IP가 변경되지 않았습니다. 다른 위치를 선택하세요."
+   },
+   "license_removed_msg": {
+      "message": "라이선스가 제거되었습니다."
+   },
+   "no_more_servers_msg": {
+      "message": "시도할 서버가 더 이상 없습니다. 나중에 다시 시도하세요."
+   },
+   "please_enter_key_msg": {
+      "message": "라이선스 키를 입력하세요."
+   },
+   "please_upgrade_msg": {
+      "message": "이 프록시 위치에 액세스하기 위해 업그레이드하십시오."
+   },
+   "premium_active_label_popover": {
+      "message": "프리미엄 활성화됨"
+   },
+   "proxy_controlled_msg": {
+      "message": "다른 확장 프로그램이 VPN을 차단하고 있습니다. 다른 프록시/VPN 확장 프로그램을 비활성화하고 다시 시도하세요."
+   },
+   "recentlocations": {
+      "message": "최근 위치"
+   },
+   "remove_license_label": {
+      "message": "라이선스 제거"
+   },
+   "retry_btn": {
+      "message": "다시 시도"
+   },
+   "server_unavailable_msg": {
+      "message": "이 서버는 사용할 수 없습니다. 다른 위치를 선택하세요."
+   },
+   "success_key_msg": {
+      "message": "Hide My IP를 활성화해 주셔서 감사합니다!"
+   },
+   "textarea_placeholder": {
+      "message": "여기에 라이센스 코드를 입력하세요"
+   },
+   "this_location_label": {
+      "message": "이 위치"
+   },
+   "unavailable_location_msg": {
+      "message": "{name}은(는) 현재 사용할 수 없습니다. 다른 위치를 선택하세요."
+   },
+   "unlock_label": {
+      "message": "프리미엄 잠금 해제"
+   },
+   "verify_failed_msg": {
+      "message": "연결을 확인할 수 없습니다. 다른 위치를 시도하세요."
+   },
+   "verify_location_failed_msg": {
+      "message": "{name}에 대한 연결을 확인할 수 없습니다. 다른 위치를 선택하세요."
+   },
+   "verifying_label": {
+      "message": "확인 중..."
+   },
+   "webrtclabel": {
+      "message": "WebRTC IP 유출 방지"
+   }
+}

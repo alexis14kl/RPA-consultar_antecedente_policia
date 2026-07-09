@@ -1,0 +1,125 @@
+{
+   "alllocations": {
+      "message": "Tüm Mevcut Konumlar"
+   },
+   "btn_back": {
+      "message": "Geri"
+   },
+   "btn_buy": {
+      "message": "Lisans Satın Al"
+   },
+   "btn_enter_license_key": {
+      "message": "Lisans Anahtarını Girin"
+   },
+   "buy_label": {
+      "message": "Lisans satın al"
+   },
+   "cancel_btn": {
+      "message": "İptal"
+   },
+   "change_license_label": {
+      "message": "Lisansı değiştir"
+   },
+   "check_my_ip_label": {
+      "message": "IP'mi Kontrol Et"
+   },
+   "connect_failed_msg": {
+      "message": "Şu anda {name} konumuna bağlanılamıyor. Tekrar deneyin veya başka bir konum seçin."
+   },
+   "connected_label": {
+      "message": "Bağlandı"
+   },
+   "connecting_msg": {
+      "message": "Bağlanıyor..."
+   },
+   "disconnected_label": {
+      "message": "Bağlantı kesildi"
+   },
+   "enter_license_menu_label": {
+      "message": "Lisans Gir"
+   },
+   "error_msg": {
+      "message": "Proxy kimlik bilgileri alınamadı, lütfen tekrar deneyin."
+   },
+   "fetch_error_msg": {
+      "message": "Sunucu listesi yüklenemedi. ISP'iniz VPN hizmetini engelliyor olabilir. Mobil veriyi veya başka bir ağı deneyin, ardından Yeniden Dene'ye tıklayın."
+   },
+   "hide_my_ip_label": {
+      "message": "Hide My IP"
+   },
+   "invalid_key_msg": {
+      "message": "Geçersiz anahtar."
+   },
+   "killed_banner_msg": {
+      "message": "{country} sunucusu kullanılamaz oldu ve bağlantı kesildi. Lütfen başka bir konum seçin."
+   },
+   "killswitch_label": {
+      "message": "Acil Durdurucu"
+   },
+   "last_location_label": {
+      "message": "Son konum"
+   },
+   "leak_detected_msg": {
+      "message": "Bağlantı kontrolü başarısız — IP'niz değişmedi. Başka bir sunucu deneyin."
+   },
+   "leak_location_msg": {
+      "message": "{name} bağlantısı onaylanamadı — IP adresiniz değişmedi. Lütfen başka bir konum seçin."
+   },
+   "license_removed_msg": {
+      "message": "Lisans kaldırıldı."
+   },
+   "no_more_servers_msg": {
+      "message": "Denenecek başka sunucu yok. Lütfen daha sonra tekrar deneyin."
+   },
+   "please_enter_key_msg": {
+      "message": "Lütfen bir lisans anahtarı girin."
+   },
+   "please_upgrade_msg": {
+      "message": "Bu Premium Konumu Kullanmak İçin Yükseltin"
+   },
+   "premium_active_label_popover": {
+      "message": "Premium etkin"
+   },
+   "proxy_controlled_msg": {
+      "message": "Başka bir uzantı VPN'i engelliyor. Diğer proxy/VPN uzantılarını devre dışı bırakın ve tekrar deneyin."
+   },
+   "recentlocations": {
+      "message": "Son Konumlar"
+   },
+   "remove_license_label": {
+      "message": "Lisansı kaldır"
+   },
+   "retry_btn": {
+      "message": "Yeniden Dene"
+   },
+   "server_unavailable_msg": {
+      "message": "Bu sunucu kullanılamıyor. Lütfen başka bir konum seçin."
+   },
+   "success_key_msg": {
+      "message": "Hide My IP'yi etkinleştirdiğiniz için teşekkürler!"
+   },
+   "textarea_placeholder": {
+      "message": "Lisans kodunu buraya girin"
+   },
+   "this_location_label": {
+      "message": "bu konum"
+   },
+   "unavailable_location_msg": {
+      "message": "{name} şu anda kullanılamıyor. Lütfen başka bir konum seçin."
+   },
+   "unlock_label": {
+      "message": "Premium'un kilidini aç"
+   },
+   "verify_failed_msg": {
+      "message": "Bağlantı doğrulanamadı. Başka bir konum deneyin."
+   },
+   "verify_location_failed_msg": {
+      "message": "{name} bağlantısı doğrulanamadı. Lütfen başka bir konum seçin."
+   },
+   "verifying_label": {
+      "message": "Doğrulanıyor..."
+   },
+   "webrtclabel": {
+      "message": "WebRTC IP Sızıntısını Önleyin"
+   }
+}

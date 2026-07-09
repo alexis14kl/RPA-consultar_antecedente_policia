@@ -1,0 +1,125 @@
+{
+   "alllocations": {
+      "message": "Toate locațiile disponibile"
+   },
+   "btn_back": {
+      "message": "Înapoi"
+   },
+   "btn_buy": {
+      "message": "Cumpărați licența"
+   },
+   "btn_enter_license_key": {
+      "message": "Introduceti cheia de licență"
+   },
+   "buy_label": {
+      "message": "Cumpără licența"
+   },
+   "cancel_btn": {
+      "message": "Anulează"
+   },
+   "change_license_label": {
+      "message": "Schimbă licența"
+   },
+   "check_my_ip_label": {
+      "message": "Verifică IP-ul meu"
+   },
+   "connect_failed_msg": {
+      "message": "Nu s-a putut conecta la {name} acum. Încearcă din nou sau alege altă locație."
+   },
+   "connected_label": {
+      "message": "Conectat"
+   },
+   "connecting_msg": {
+      "message": "Se conectează..."
+   },
+   "disconnected_label": {
+      "message": "Deconectat"
+   },
+   "enter_license_menu_label": {
+      "message": "Introduceți licența"
+   },
+   "error_msg": {
+      "message": "Nu s-au putut obține acreditările proxy, încercați din nou."
+   },
+   "fetch_error_msg": {
+      "message": "Nu s-a putut încărca lista de servere. ISP-ul dvs. poate bloca serviciul VPN. Încercați datele mobile sau o rețea diferită, apoi apăsați Reîncearcă."
+   },
+   "hide_my_ip_label": {
+      "message": "Hide My IP"
+   },
+   "invalid_key_msg": {
+      "message": "Cheie invalidă."
+   },
+   "killed_banner_msg": {
+      "message": "Serverul {country} a devenit indisponibil și a fost deconectat. Vă rugăm alegeți altă locație."
+   },
+   "killswitch_label": {
+      "message": "Întrerupător de urgență"
+   },
+   "last_location_label": {
+      "message": "Ultima locație"
+   },
+   "leak_detected_msg": {
+      "message": "Verificarea conexiunii a eșuat — IP-ul dvs. nu s-a schimbat. Încercați alt server."
+   },
+   "leak_location_msg": {
+      "message": "Nu s-a putut confirma conexiunea la {name} — IP-ul tău nu s-a schimbat. Alege altă locație."
+   },
+   "license_removed_msg": {
+      "message": "Licență eliminată."
+   },
+   "no_more_servers_msg": {
+      "message": "Nu mai sunt servere de încercat. Vă rugăm încercați mai târziu."
+   },
+   "please_enter_key_msg": {
+      "message": "Vă rugăm introduceți o cheie de licență."
+   },
+   "please_upgrade_msg": {
+      "message": "Actualizați pentru a folosi această locație premium"
+   },
+   "premium_active_label_popover": {
+      "message": "Premium activ"
+   },
+   "proxy_controlled_msg": {
+      "message": "Altă extensie blochează VPN-ul. Dezactivați alte extensii proxy/VPN și încercați din nou."
+   },
+   "recentlocations": {
+      "message": "Locații recente"
+   },
+   "remove_license_label": {
+      "message": "Elimină licența"
+   },
+   "retry_btn": {
+      "message": "Reîncearcă"
+   },
+   "server_unavailable_msg": {
+      "message": "Acest server este indisponibil. Vă rugăm alegeți altă locație."
+   },
+   "success_key_msg": {
+      "message": "Mulțumim că ați activat Hide My IP!"
+   },
+   "textarea_placeholder": {
+      "message": "Vă rugăm să introduceți codul de licență aici"
+   },
+   "this_location_label": {
+      "message": "această locație"
+   },
+   "unavailable_location_msg": {
+      "message": "{name} nu este disponibilă momentan. Alege altă locație."
+   },
+   "unlock_label": {
+      "message": "Deblochează Premium"
+   },
+   "verify_failed_msg": {
+      "message": "Nu s-a putut verifica conexiunea. Încercați altă locație."
+   },
+   "verify_location_failed_msg": {
+      "message": "Nu s-a putut verifica conexiunea la {name}. Alege altă locație."
+   },
+   "verifying_label": {
+      "message": "Se verifică..."
+   },
+   "webrtclabel": {
+      "message": "Prevenirea scurgerii IP WebRTC"
+   }
+}

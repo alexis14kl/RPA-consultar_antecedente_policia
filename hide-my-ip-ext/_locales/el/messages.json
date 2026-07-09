@@ -1,0 +1,125 @@
+{
+   "alllocations": {
+      "message": "Όλες οι διαθέσιμες τοποθεσίες"
+   },
+   "btn_back": {
+      "message": "Πίσω"
+   },
+   "btn_buy": {
+      "message": "Αγοράστε άδεια"
+   },
+   "btn_enter_license_key": {
+      "message": "Εισαγάγετε το κλειδί άδειας"
+   },
+   "buy_label": {
+      "message": "Αγορά άδειας"
+   },
+   "cancel_btn": {
+      "message": "Άκυρο"
+   },
+   "change_license_label": {
+      "message": "Αλλαγή άδειας"
+   },
+   "check_my_ip_label": {
+      "message": "Έλεγχος του IP μου"
+   },
+   "connect_failed_msg": {
+      "message": "Δεν ήταν δυνατή η σύνδεση με {name} αυτή τη στιγμή. Δοκίμασε ξανά ή επίλεξε άλλη τοποθεσία."
+   },
+   "connected_label": {
+      "message": "Συνδεδεμένο"
+   },
+   "connecting_msg": {
+      "message": "Σύνδεση..."
+   },
+   "disconnected_label": {
+      "message": "Αποσυνδεδεμένο"
+   },
+   "enter_license_menu_label": {
+      "message": "Εισαγωγή άδειας"
+   },
+   "error_msg": {
+      "message": "Αποτυχία λήψης διαπιστευτηρίων proxy, δοκιμάστε ξανά."
+   },
+   "fetch_error_msg": {
+      "message": "Δεν ήταν δυνατή η φόρτωση της λίστας διακομιστών. Ο πάροχος σας ίσως αποκλείει την υπηρεσία VPN. Δοκιμάστε δεδομένα κινητού ή άλλο δίκτυο, μετά κάντε κλικ στο Δοκιμή ξανά."
+   },
+   "hide_my_ip_label": {
+      "message": "Hide My IP"
+   },
+   "invalid_key_msg": {
+      "message": "Μη έγκυρο κλειδί."
+   },
+   "killed_banner_msg": {
+      "message": "Ο διακομιστής {country} δεν είναι διαθέσιμος και αποσυνδέθηκε. Παρακαλώ επιλέξτε άλλη τοποθεσία."
+   },
+   "killswitch_label": {
+      "message": "Διακόπτης ασφαλείας"
+   },
+   "last_location_label": {
+      "message": "Τελευταία τοποθεσία"
+   },
+   "leak_detected_msg": {
+      "message": "Ο έλεγχος σύνδεσης απέτυχε — το IP δεν άλλαξε. Δοκιμάστε άλλον διακομιστή."
+   },
+   "leak_location_msg": {
+      "message": "Δεν ήταν δυνατή η επιβεβαίωση της σύνδεσης με {name} — η IP σου δεν άλλαξε. Επίλεξε άλλη τοποθεσία."
+   },
+   "license_removed_msg": {
+      "message": "Η άδεια αφαιρέθηκε."
+   },
+   "no_more_servers_msg": {
+      "message": "Δεν υπάρχουν άλλοι διακομιστές για δοκιμή. Παρακαλώ δοκιμάστε ξανά αργότερα."
+   },
+   "please_enter_key_msg": {
+      "message": "Παρακαλώ εισάγετε ένα κλειδί άδειας."
+   },
+   "please_upgrade_msg": {
+      "message": "Αναβαθμίστε για να χρησιμοποιήσετε αυτήν την premium τοποθεσία"
+   },
+   "premium_active_label_popover": {
+      "message": "Το Premium είναι ενεργό"
+   },
+   "proxy_controlled_msg": {
+      "message": "Άλλη επέκταση μπλοκάρει το VPN. Απενεργοποιήστε άλλες επεκτάσεις proxy/VPN και δοκιμάστε ξανά."
+   },
+   "recentlocations": {
+      "message": "Πρόσφατες τοποθεσίες"
+   },
+   "remove_license_label": {
+      "message": "Αφαίρεση άδειας"
+   },
+   "retry_btn": {
+      "message": "Δοκιμή ξανά"
+   },
+   "server_unavailable_msg": {
+      "message": "Αυτός ο διακομιστής δεν είναι διαθέσιμος. Παρακαλώ επιλέξτε άλλη τοποθεσία."
+   },
+   "success_key_msg": {
+      "message": "Σας ευχαριστούμε που ενεργοποιήσατε το Hide My IP!"
+   },
+   "textarea_placeholder": {
+      "message": "Παρακαλώ εισάγετε τον κωδικό άδειας εδώ"
+   },
+   "this_location_label": {
+      "message": "αυτή την τοποθεσία"
+   },
+   "unavailable_location_msg": {
+      "message": "Το {name} δεν είναι διαθέσιμο αυτή τη στιγμή. Επίλεξε άλλη τοποθεσία."
+   },
+   "unlock_label": {
+      "message": "Ξεκλείδωμα Premium"
+   },
+   "verify_failed_msg": {
+      "message": "Δεν ήταν δυνατή η επαλήθευση της σύνδεσης. Δοκιμάστε άλλη τοποθεσία."
+   },
+   "verify_location_failed_msg": {
+      "message": "Δεν ήταν δυνατή η επαλήθευση της σύνδεσης με {name}. Επίλεξε άλλη τοποθεσία."
+   },
+   "verifying_label": {
+      "message": "Επαλήθευση..."
+   },
+   "webrtclabel": {
+      "message": "Αποτροπή διαρροής IP μέσω WebRTC"
+   }
+}

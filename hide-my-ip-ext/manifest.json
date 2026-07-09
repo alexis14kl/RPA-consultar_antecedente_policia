@@ -1,0 +1,28 @@
+{
+   "action": {
+      "default_icon": {
+         "19": "img/disabled.png"
+      },
+      "default_popup": "popup.html",
+      "default_title": "Hide My IP"
+   },
+   "background": {
+      "service_worker": "background.js"
+   },
+   "default_locale": "en",
+   "description": "Hide Your IP Address for Free!",
+   "host_permissions": [ "https://apix.hide-my-ip.com/*", "https://location-list.wendysgolang.workers.dev/*", "\u003Call_urls>" ],
+   "icons": {
+      "128": "img/icon128.png",
+      "16": "img/icon16.png",
+      "32": "img/icon32.png",
+      "48": "img/icon.png"
+   },
+   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsH0zFDIq9nKQgqGpozeGmtl4o7QX5em9yNuF5NaQJ71wW32wQTr7WPm08tnNbilMl9GvrV07ej5huH+Fyo3n97GWUILr+uVBTlrCEltk2ZWikOFOJsHnUo20lXddH4LoMVzlymYb/vgB+cVIx6fWSCW52eiWLkEDD2Yh/m3fyJnfzF3EqYVouJ8KlO9sfN8HZn+C3HSrZe+ekKVgOVu4Ydvhn34dvnbFYcBU61ehAkPKWuNFHW4ftb3Cqgtt8houOBM70jAvJiF+7PoMA8NIOTTeFsNH52BYYd/kt79JmvRMTmu2n5J1FvBkABeZmU3foyHAjViwLtnJs/Uo2zvLowIDAQAB",
+   "manifest_version": 3,
+   "minimum_chrome_version": "116",
+   "name": "Hide My IP",
+   "permissions": [ "storage", "proxy", "webRequest", "webRequestAuthProvider", "privacy" ],
+   "update_url": "https://clients2.google.com/service/update2/crx",
+   "version": "2.7.0"
+}

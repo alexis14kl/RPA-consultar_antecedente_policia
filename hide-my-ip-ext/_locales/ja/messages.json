@@ -1,0 +1,125 @@
+{
+   "alllocations": {
+      "message": "すべての利用可能な場所"
+   },
+   "btn_back": {
+      "message": "戻る"
+   },
+   "btn_buy": {
+      "message": "ライセンスを購入"
+   },
+   "btn_enter_license_key": {
+      "message": "ライセンスキーを入力"
+   },
+   "buy_label": {
+      "message": "ライセンスを購入"
+   },
+   "cancel_btn": {
+      "message": "キャンセル"
+   },
+   "change_license_label": {
+      "message": "ライセンスを変更"
+   },
+   "check_my_ip_label": {
+      "message": "IPを確認"
+   },
+   "connect_failed_msg": {
+      "message": "現在 {name} に接続できません。もう一度試すか、別のロケーションを選択してください。"
+   },
+   "connected_label": {
+      "message": "接続済み"
+   },
+   "connecting_msg": {
+      "message": "接続中..."
+   },
+   "disconnected_label": {
+      "message": "切断済み"
+   },
+   "enter_license_menu_label": {
+      "message": "ライセンスを入力"
+   },
+   "error_msg": {
+      "message": "プロキシ認証情報の取得に失敗しました。もう一度お試しください。"
+   },
+   "fetch_error_msg": {
+      "message": "サーバーリストを読み込めませんでした。ISPがVPNサービスをブロックしている可能性があります。モバイルデータまたは別のネットワークを試してから再試行をクリックしてください。"
+   },
+   "hide_my_ip_label": {
+      "message": "Hide My IP"
+   },
+   "invalid_key_msg": {
+      "message": "無効なキー。"
+   },
+   "killed_banner_msg": {
+      "message": "{country}サーバーが利用不可になり切断されました。別の場所を選択してください。"
+   },
+   "killswitch_label": {
+      "message": "キルスイッチ"
+   },
+   "last_location_label": {
+      "message": "前回の場所"
+   },
+   "leak_detected_msg": {
+      "message": "接続確認に失敗 — IPが変更されませんでした。別のサーバーをお試しください。"
+   },
+   "leak_location_msg": {
+      "message": "{name} への接続を確認できませんでした — IP アドレスが変更されていません。別のロケーションを選択してください。"
+   },
+   "license_removed_msg": {
+      "message": "ライセンスを削除しました。"
+   },
+   "no_more_servers_msg": {
+      "message": "試せるサーバーがありません。後でもう一度お試しください。"
+   },
+   "please_enter_key_msg": {
+      "message": "ライセンスキーを入力してください。"
+   },
+   "please_upgrade_msg": {
+      "message": "このプレミアム場所を使用するにはアップグレードしてください"
+   },
+   "premium_active_label_popover": {
+      "message": "プレミアム有効"
+   },
+   "proxy_controlled_msg": {
+      "message": "別の拡張機能がVPNをブロックしています。他のプロキシ/VPN拡張機能を無効にして再試行してください。"
+   },
+   "recentlocations": {
+      "message": "最近の場所"
+   },
+   "remove_license_label": {
+      "message": "ライセンスを削除"
+   },
+   "retry_btn": {
+      "message": "再試行"
+   },
+   "server_unavailable_msg": {
+      "message": "このサーバーは利用できません。別の場所を選択してください。"
+   },
+   "success_key_msg": {
+      "message": "Hide My IPのアクティベーションありがとうございます！"
+   },
+   "textarea_placeholder": {
+      "message": "ここにライセンスコードを入力してください"
+   },
+   "this_location_label": {
+      "message": "このロケーション"
+   },
+   "unavailable_location_msg": {
+      "message": "{name} は現在利用できません。別のロケーションを選択してください。"
+   },
+   "unlock_label": {
+      "message": "プレミアムをアンロック"
+   },
+   "verify_failed_msg": {
+      "message": "接続を確認できませんでした。別の場所をお試しください。"
+   },
+   "verify_location_failed_msg": {
+      "message": "{name} への接続を確認できませんでした。別のロケーションを選択してください。"
+   },
+   "verifying_label": {
+      "message": "確認中..."
+   },
+   "webrtclabel": {
+      "message": "WebRTC IPリークを防止"
+   }
+}

@@ -1,0 +1,125 @@
+{
+   "alllocations": {
+      "message": "Tous les emplacements disponibles"
+   },
+   "btn_back": {
+      "message": "Retour"
+   },
+   "btn_buy": {
+      "message": "Acheter une licence"
+   },
+   "btn_enter_license_key": {
+      "message": "Entrer la clé de licence"
+   },
+   "buy_label": {
+      "message": "Acheter une licence"
+   },
+   "cancel_btn": {
+      "message": "Annuler"
+   },
+   "change_license_label": {
+      "message": "Changer de licence"
+   },
+   "check_my_ip_label": {
+      "message": "Vérifier mon IP"
+   },
+   "connect_failed_msg": {
+      "message": "Impossible de se connecter à {name} pour le moment. Veuillez réessayer ou choisir un autre emplacement."
+   },
+   "connected_label": {
+      "message": "Connecté"
+   },
+   "connecting_msg": {
+      "message": "Connexion..."
+   },
+   "disconnected_label": {
+      "message": "Déconnecté"
+   },
+   "enter_license_menu_label": {
+      "message": "Entrer la licence"
+   },
+   "error_msg": {
+      "message": "Échec de la récupération des identifiants du proxy, veuillez réessayer."
+   },
+   "fetch_error_msg": {
+      "message": "Impossible de charger la liste des serveurs. Votre FAI peut bloquer le service VPN. Essayez les données mobiles ou un autre réseau, puis cliquez sur Réessayer."
+   },
+   "hide_my_ip_label": {
+      "message": "Hide My IP"
+   },
+   "invalid_key_msg": {
+      "message": "Clé invalide."
+   },
+   "killed_banner_msg": {
+      "message": "Le serveur {country} est devenu indisponible et a été déconnecté. Veuillez choisir un autre emplacement."
+   },
+   "killswitch_label": {
+      "message": "Coupe-circuit"
+   },
+   "last_location_label": {
+      "message": "Dernier emplacement"
+   },
+   "leak_detected_msg": {
+      "message": "Échec de la vérification de connexion — votre IP n'a pas changé. Essayez un autre serveur."
+   },
+   "leak_location_msg": {
+      "message": "Impossible de confirmer la connexion à {name} — votre IP n'a pas changé. Veuillez choisir un autre emplacement."
+   },
+   "license_removed_msg": {
+      "message": "Licence supprimée."
+   },
+   "no_more_servers_msg": {
+      "message": "Plus de serveurs à essayer. Veuillez réessayer plus tard."
+   },
+   "please_enter_key_msg": {
+      "message": "Veuillez entrer une clé de licence."
+   },
+   "please_upgrade_msg": {
+      "message": "Mettez à niveau pour utiliser cet emplacement premium"
+   },
+   "premium_active_label_popover": {
+      "message": "Premium actif"
+   },
+   "proxy_controlled_msg": {
+      "message": "Une autre extension bloque le VPN. Désactivez les autres extensions proxy/VPN et réessayez."
+   },
+   "recentlocations": {
+      "message": "Emplacements récents"
+   },
+   "remove_license_label": {
+      "message": "Supprimer la licence"
+   },
+   "retry_btn": {
+      "message": "Réessayer"
+   },
+   "server_unavailable_msg": {
+      "message": "Ce serveur est indisponible. Veuillez choisir un autre emplacement."
+   },
+   "success_key_msg": {
+      "message": "Merci d'avoir activé Hide My IP !"
+   },
+   "textarea_placeholder": {
+      "message": "Veuillez entrer le code de licence ici"
+   },
+   "this_location_label": {
+      "message": "cet emplacement"
+   },
+   "unavailable_location_msg": {
+      "message": "{name} n'est pas disponible actuellement. Veuillez choisir un autre emplacement."
+   },
+   "unlock_label": {
+      "message": "Déverrouiller Premium"
+   },
+   "verify_failed_msg": {
+      "message": "Impossible de vérifier la connexion. Essayez un autre emplacement."
+   },
+   "verify_location_failed_msg": {
+      "message": "Impossible de vérifier la connexion à {name}. Veuillez choisir un autre emplacement."
+   },
+   "verifying_label": {
+      "message": "Vérification..."
+   },
+   "webrtclabel": {
+      "message": "Empêcher la fuite IP WebRTC"
+   }
+}

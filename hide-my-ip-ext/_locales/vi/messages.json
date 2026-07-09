@@ -1,0 +1,125 @@
+{
+   "alllocations": {
+      "message": "Tất cả các địa điểm có sẵn"
+   },
+   "btn_back": {
+      "message": "Quay lại"
+   },
+   "btn_buy": {
+      "message": "Mua giấy phép"
+   },
+   "btn_enter_license_key": {
+      "message": "Nhập khóa giấy phép"
+   },
+   "buy_label": {
+      "message": "Mua giấy phép"
+   },
+   "cancel_btn": {
+      "message": "Hủy"
+   },
+   "change_license_label": {
+      "message": "Đổi giấy phép"
+   },
+   "check_my_ip_label": {
+      "message": "Kiểm tra IP của tôi"
+   },
+   "connect_failed_msg": {
+      "message": "Không thể kết nối với {name} ngay bây giờ. Vui lòng thử lại hoặc chọn vị trí khác."
+   },
+   "connected_label": {
+      "message": "Đã kết nối"
+   },
+   "connecting_msg": {
+      "message": "Đang kết nối..."
+   },
+   "disconnected_label": {
+      "message": "Đã ngắt kết nối"
+   },
+   "enter_license_menu_label": {
+      "message": "Nhập giấy phép"
+   },
+   "error_msg": {
+      "message": "Không thể lấy thông tin proxy, vui lòng thử lại."
+   },
+   "fetch_error_msg": {
+      "message": "Không thể tải danh sách máy chủ. Nhà cung cấp internet của bạn có thể đang chặn dịch vụ VPN. Thử dữ liệu di động hoặc mạng khác, sau đó nhấp Thử lại."
+   },
+   "hide_my_ip_label": {
+      "message": "Hide My IP"
+   },
+   "invalid_key_msg": {
+      "message": "Khóa không hợp lệ."
+   },
+   "killed_banner_msg": {
+      "message": "Máy chủ {country} đã không khả dụng và đã ngắt kết nối. Vui lòng chọn vị trí khác."
+   },
+   "killswitch_label": {
+      "message": "Công tắc khẩn cấp"
+   },
+   "last_location_label": {
+      "message": "Vị trí gần đây"
+   },
+   "leak_detected_msg": {
+      "message": "Kiểm tra kết nối thất bại — IP không thay đổi. Thử máy chủ khác."
+   },
+   "leak_location_msg": {
+      "message": "Không thể xác nhận kết nối với {name} — IP của bạn không thay đổi. Vui lòng chọn vị trí khác."
+   },
+   "license_removed_msg": {
+      "message": "Đã xóa giấy phép."
+   },
+   "no_more_servers_msg": {
+      "message": "Không còn máy chủ để thử. Vui lòng thử lại sau."
+   },
+   "please_enter_key_msg": {
+      "message": "Vui lòng nhập khóa giấy phép."
+   },
+   "please_upgrade_msg": {
+      "message": "Nâng cấp để sử dụng địa điểm cao cấp này"
+   },
+   "premium_active_label_popover": {
+      "message": "Premium đang hoạt động"
+   },
+   "proxy_controlled_msg": {
+      "message": "Một tiện ích khác đang chặn VPN. Tắt các tiện ích proxy/VPN khác và thử lại."
+   },
+   "recentlocations": {
+      "message": "Địa điểm gần đây"
+   },
+   "remove_license_label": {
+      "message": "Xóa giấy phép"
+   },
+   "retry_btn": {
+      "message": "Thử lại"
+   },
+   "server_unavailable_msg": {
+      "message": "Máy chủ này không khả dụng. Vui lòng chọn vị trí khác."
+   },
+   "success_key_msg": {
+      "message": "Cảm ơn bạn đã kích hoạt Hide My IP!"
+   },
+   "textarea_placeholder": {
+      "message": "Vui lòng nhập mã giấy phép ở đây"
+   },
+   "this_location_label": {
+      "message": "vị trí này"
+   },
+   "unavailable_location_msg": {
+      "message": "{name} hiện không khả dụng. Vui lòng chọn vị trí khác."
+   },
+   "unlock_label": {
+      "message": "Mở khóa Premium"
+   },
+   "verify_failed_msg": {
+      "message": "Không thể xác minh kết nối. Thử vị trí khác."
+   },
+   "verify_location_failed_msg": {
+      "message": "Không thể xác minh kết nối với {name}. Vui lòng chọn vị trí khác."
+   },
+   "verifying_label": {
+      "message": "Đang xác minh..."
+   },
+   "webrtclabel": {
+      "message": "Ngăn rò rỉ IP WebRTC"
+   }
+}

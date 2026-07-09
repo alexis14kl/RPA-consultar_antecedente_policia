@@ -1,0 +1,125 @@
+{
+   "alllocations": {
+      "message": "Wszystkie dostępne lokalizacje"
+   },
+   "btn_back": {
+      "message": "Wstecz"
+   },
+   "btn_buy": {
+      "message": "Kup licencję"
+   },
+   "btn_enter_license_key": {
+      "message": "Wprowadź klucz licencyjny"
+   },
+   "buy_label": {
+      "message": "Kup licencję"
+   },
+   "cancel_btn": {
+      "message": "Anuluj"
+   },
+   "change_license_label": {
+      "message": "Zmień licencję"
+   },
+   "check_my_ip_label": {
+      "message": "Sprawdź mój IP"
+   },
+   "connect_failed_msg": {
+      "message": "Nie można teraz połączyć się z {name}. Spróbuj ponownie lub wybierz inną lokalizację."
+   },
+   "connected_label": {
+      "message": "Połączono"
+   },
+   "connecting_msg": {
+      "message": "Łączenie..."
+   },
+   "disconnected_label": {
+      "message": "Rozłączono"
+   },
+   "enter_license_menu_label": {
+      "message": "Wprowadź licencję"
+   },
+   "error_msg": {
+      "message": "Nie udało się pobrać danych proxy, spróbuj ponownie."
+   },
+   "fetch_error_msg": {
+      "message": "Nie można załadować listy serwerów. Twój dostawca internetu może blokować usługę VPN. Spróbuj danych mobilnych lub innej sieci, następnie kliknij Ponów."
+   },
+   "hide_my_ip_label": {
+      "message": "Hide My IP"
+   },
+   "invalid_key_msg": {
+      "message": "Nieprawidłowy klucz."
+   },
+   "killed_banner_msg": {
+      "message": "Serwer {country} stał się niedostępny i został rozłączony. Wybierz inną lokalizację."
+   },
+   "killswitch_label": {
+      "message": "Wyłącznik awaryjny"
+   },
+   "last_location_label": {
+      "message": "Ostatnia lokalizacja"
+   },
+   "leak_detected_msg": {
+      "message": "Sprawdzenie połączenia nie powiodło się — Twój IP się nie zmienił. Wypróbuj inny serwer."
+   },
+   "leak_location_msg": {
+      "message": "Nie udało się potwierdzić połączenia z {name} — Twój adres IP nie został zmieniony. Wybierz inną lokalizację."
+   },
+   "license_removed_msg": {
+      "message": "Licencja usunięta."
+   },
+   "no_more_servers_msg": {
+      "message": "Brak dalszych serwerów do wypróbowania. Spróbuj ponownie później."
+   },
+   "please_enter_key_msg": {
+      "message": "Wprowadź klucz licencji."
+   },
+   "please_upgrade_msg": {
+      "message": "Ulepsz, aby użyć tej lokalizacji premium"
+   },
+   "premium_active_label_popover": {
+      "message": "Premium aktywne"
+   },
+   "proxy_controlled_msg": {
+      "message": "Inne rozszerzenie blokuje VPN. Wyłącz inne rozszerzenia proxy/VPN i spróbuj ponownie."
+   },
+   "recentlocations": {
+      "message": "Ostatnie lokalizacje"
+   },
+   "remove_license_label": {
+      "message": "Usuń licencję"
+   },
+   "retry_btn": {
+      "message": "Ponów"
+   },
+   "server_unavailable_msg": {
+      "message": "Ten serwer jest niedostępny. Wybierz inną lokalizację."
+   },
+   "success_key_msg": {
+      "message": "Dziękujemy za aktywację Hide My IP!"
+   },
+   "textarea_placeholder": {
+      "message": "Wprowadź kod licencyjny tutaj"
+   },
+   "this_location_label": {
+      "message": "tę lokalizację"
+   },
+   "unavailable_location_msg": {
+      "message": "{name} jest obecnie niedostępna. Wybierz inną lokalizację."
+   },
+   "unlock_label": {
+      "message": "Odblokuj Premium"
+   },
+   "verify_failed_msg": {
+      "message": "Nie można zweryfikować połączenia. Wypróbuj inną lokalizację."
+   },
+   "verify_location_failed_msg": {
+      "message": "Nie udało się zweryfikować połączenia z {name}. Wybierz inną lokalizację."
+   },
+   "verifying_label": {
+      "message": "Weryfikacja..."
+   },
+   "webrtclabel": {
+      "message": "Zapobiegaj wyciekom IP WebRTC"
+   }
+}
