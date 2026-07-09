@@ -4,6 +4,26 @@ Automatiza la consulta en `antecedentes.policia.gov.co:7005` usando Playwright +
 
 ---
 
+## 📚 Documentación
+
+| Guía | Para qué |
+|---|---|
+| [DEPENDENCIAS.md](DEPENDENCIAS.md) | **Versiones pineadas + orden de instalación** para levantar el VPS en minutos |
+| [ANTIBAN_VPS.md](ANTIBAN_VPS.md) | **Cómo configurar el VPS para NO ser baneado** por reCAPTCHA (las capas anti-ban, el risk score) |
+| [deploy/README.md](deploy/README.md) | **Stack systemd 24/7** (Xvfb + Chrome + server + watchdog) y los 3 comandos de operación |
+| [deploy/buster-client/README.md](deploy/buster-client/README.md) | El **native host de Buster** (Simulate user interactions / input XTEST) |
+| [FUTURO_API_CAPTCHA.md](FUTURO_API_CAPTCHA.md) | Diseño de la **API propia de tokens** de captcha (roadmap) |
+| [IMPLEMENTACION_LINUX.md](IMPLEMENTACION_LINUX.md) | Guía original de implementación en Linux |
+
+**Scripts de instalación** (reproducibles, con encabezado explicativo):
+`deploy/install.sh` + `deploy/cutover.sh` (systemd) · `deploy/install_whisper_cpp.sh` (STT local) ·
+`deploy/install_buster_client.sh` (native host) · `requirements.txt` (deps Python).
+
+**Operación / diagnóstico:** `deploy/estado.sh` · `deploy/levantar.sh` · `deploy/rotar.sh` ·
+`verify_buster_native.cjs` · `buster_settings.cjs`.
+
+---
+
 ## Archivos
 
 | Archivo | SO | Rol |
@@ -16,7 +36,7 @@ Automatiza la consulta en `antecedentes.policia.gov.co:7005` usando Playwright +
 | `launch_chrome.sh` | macOS | Clona Profile 1 a un dir dedicado y abre Chrome con CDP |
 | `browser.ts` | ambos | Automatiza la consulta (Playwright via CDP) |
 | `server.ts` | ambos | Servidor API REST (`POST /consultar`) sobre el mismo browser |
-| `transcribe.py` | ambos | Transcribe audio del reCAPTCHA (fallback opcional) |
+| `transcribe.py` | ambos | Transcribe el audio del reCAPTCHA — **whisper.cpp local** (principal) → Google STT |
 
 ---
 
