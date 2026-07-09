@@ -1,0 +1,9 @@
+[Unit]
+Description=RPA — reciclado de Chrome + server (limpia memory-creep de correr días)
+# OPT-IN: se activa con  systemctl enable --now rpa-recycle.timer
+
+[Service]
+Type=oneshot
+# Reinicia Chrome y el server juntos (el server hace connectOverCDP una vez, así que si
+# reciclás Chrome también hay que reiniciar el server para que reconecte).
+ExecStart=/usr/bin/systemctl restart rpa-chrome.service rpa-server.service

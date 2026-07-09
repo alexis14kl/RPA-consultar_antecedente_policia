@@ -1,0 +1,15 @@
+[Unit]
+Description=RPA — Xvfb display virtual :99
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# Xvfb corre en su propio service: reciclar Chrome NO mata el display,
+# así el x11vnc/noVNC (fase de test) sigue enganchado.
+ExecStartPre=-/bin/rm -f /tmp/.X99-lock
+ExecStart=/usr/bin/Xvfb :99 -screen 0 1280x800x24 -nolisten tcp
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

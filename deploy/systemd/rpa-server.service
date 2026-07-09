@@ -1,0 +1,22 @@
+[Unit]
+Description=RPA — server.ts (API antecedentes) en :4321
+After=rpa-chrome.service
+Requires=rpa-chrome.service
+
+[Service]
+Type=simple
+WorkingDirectory=/root/RPA-consultar_antecedente_policia
+Environment=DISPLAY=:99
+# El túnel cloudflared (alexis-madrigal.com) apunta a localhost:4321. El default del
+# código es 3000, así que hay que fijar PORT=4321 (antes se pasaba a mano al lanzarlo).
+Environment=PORT=4321
+Environment=HOST=127.0.0.1
+EnvironmentFile=-/root/RPA-consultar_antecedente_policia/.env
+# Esperar a que el CDP esté arriba antes de arrancar (server hace connectOverCDP al inicio).
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 60); do curl -sf http://127.0.0.1:9223/json/version >/dev/null 2>&1 && exit 0; sleep 1; done; echo "CDP no disponible en 60s"; exit 1'
+ExecStart=/usr/bin/npx tsx server.ts
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

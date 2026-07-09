@@ -1,0 +1,23 @@
+[Unit]
+Description=RPA — Chrome CDP (Buster + hide-my-ip) en :9223
+After=rpa-xvfb.service
+Requires=rpa-xvfb.service
+# Si Chrome cae en loop, systemd frena tras 5 fallos en 60s (evita martilleo).
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=/root/RPA-consultar_antecedente_policia
+Environment=DISPLAY=:99
+Environment=FOREGROUND=1
+Environment=WAIT_PROXY=1
+EnvironmentFile=-/root/RPA-consultar_antecedente_policia/.env
+# Garantía de instancia única: barrer cualquier Chrome huérfano en :9223 antes de arrancar.
+ExecStartPre=-/usr/bin/pkill -9 -f remote-debugging-port=9223
+ExecStart=/root/RPA-consultar_antecedente_policia/launch_chrome_linux.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
