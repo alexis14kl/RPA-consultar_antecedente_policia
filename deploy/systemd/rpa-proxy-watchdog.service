@@ -8,6 +8,13 @@ Type=simple
 WorkingDirectory=/root/RPA-consultar_antecedente_policia
 Environment=CDP_PORT=9223
 Environment=HEALTH_PORT=4321
+# Agresivo: rota apenas hay 1 bloqueo y el pool no está sano, chequea cada 6s,
+# cooldown corto para ir "cazando" una IP buena rápido (proxies de baja calidad).
+Environment=WD_THRESHOLD=1
+Environment=WD_POOL_LOW=3
+Environment=WD_WINDOW=30
+Environment=WD_CHECK_MS=6000
+Environment=WD_COOLDOWN=15000
 EnvironmentFile=-/root/RPA-consultar_antecedente_policia/.env
 # Esperar al CDP antes de arrancar (el watchdog se engancha por CDP).
 ExecStartPre=/bin/sh -c 'for i in $(seq 1 60); do curl -sf http://127.0.0.1:9223/json/version >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1'
