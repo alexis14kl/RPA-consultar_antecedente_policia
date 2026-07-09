@@ -43,14 +43,26 @@ sudo bash deploy/cutover.sh
 sudo systemctl enable --now rpa-recycle.timer
 ```
 
-## Operación
+## Operación — 3 comandos que resuelven todo
 
 ```bash
-systemctl status rpa-chrome rpa-server        # estado
-journalctl -u rpa-server -f                   # logs del server
-journalctl -u rpa-chrome -f                   # logs de Chrome/proxy
-systemctl restart rpa-chrome rpa-server       # reciclar a mano
-curl -s localhost:4321/health                 # pool, activas, esperando
+bash deploy/estado.sh      # 👁️  VER todo de una: servicios, pool, IP del proxy,
+                           #     última rotación, captchas 5min, túnel, RAM + veredicto
+bash deploy/levantar.sh    # 🚑  LEVANTAR/recuperar el stack en minutos (reinicia en
+                           #     orden, espera el pool y confirma que volvió)
+bash deploy/rotar.sh       # 🔁  FORZAR rotación del proxy ahora (muestra IP antes/después)
+```
+
+`estado.sh` te dice al toque **si está rotando y en qué IP está** — se acabó el "no sé qué le pasa".
+Si el veredicto es ⚠️, corré `levantar.sh` y en 1-3 min vuelve.
+
+### Comandos crudos (si querés cavar)
+```bash
+systemctl status rpa-chrome rpa-server rpa-proxy-watchdog
+journalctl -u rpa-server -f            # captchas/consultas
+journalctl -u rpa-proxy-watchdog -f    # cuándo rota el proxy
+node proxy_ctl.cjs status              # IP actual del proxy
+curl -s localhost:4321/health          # pool, activas, esperando
 ```
 
 Rollback a manual: `FOREGROUND=0 bash launch_chrome_linux.sh & ; npx tsx server.ts`

@@ -7,6 +7,7 @@ UNITS="$REPO/deploy/systemd"
 
 echo "[install] repo: $REPO"
 chmod +x "$REPO/launch_chrome_linux.sh"
+chmod +x "$REPO/deploy/"*.sh 2>/dev/null || true
 
 echo "[install] copiando units a /etc/systemd/system/"
 cp "$UNITS/rpa-xvfb.service"          /etc/systemd/system/
