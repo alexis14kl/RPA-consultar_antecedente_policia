@@ -476,7 +476,7 @@ async function ejecutarConsulta(
 
     await page.locator("#cedulaInput").fill(cedula);
 
-    await page.locator("#j_idt17").click();
+    await page.getByRole("button", { name: /consultar/i }).click();
     await Promise.race([
       page.waitForLoadState("networkidle", { timeout: 20000 }),
       page.locator("#form\\:mensajeCiudadano").waitFor({ state: "visible", timeout: 20000 }),
