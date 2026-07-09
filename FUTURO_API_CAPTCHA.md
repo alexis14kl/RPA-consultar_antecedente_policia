@@ -98,7 +98,72 @@ Auth por **API key** propia (header). Rate limit por key. Métricas de éxito/ti
 
 ---
 
-## 5. El "solver farm" (los workers)
+## 5. Consumo del token (el "paso 4": engañar al servidor con el token)
+
+Cuando el farm entrega el `gRecaptchaResponse`, el bot tiene que **inyectarlo y consumirlo**
+antes de que expire (~120s, un solo uso). En navegación normal, al resolver el captcha, Google
+inyecta ese token en el campo oculto `<textarea id="g-recaptcha-response">` del form. El bot
+simula eso. Hay dos formas:
+
+### Flavor A — automatización de navegador (inyectar + disparar callback + submit)
+El textarea está oculto (`display:none`); hay que escribirlo y —clave— **invocar el callback**
+que reCAPTCHA normalmente llama, porque muchos formularios NO leen el textarea directo:
+
+```js
+// Playwright / Puppeteer — en la página objetivo ya cargada
+await page.evaluate((token) => {
+  const ta = document.getElementById('g-recaptcha-response');
+  ta.style.display = 'block';
+  ta.value = token;                                    // 1) inyectar el token
+
+  // 2) disparar el callback si el form lo usa (si no, el submit sigue deshabilitado)
+  const w = document.querySelector('.g-recaptcha');
+  const cb = w && w.getAttribute('data-callback');
+  if (cb && typeof window[cb] === 'function') window[cb](token);
+}, token);
+await page.click('#submitBtn');                        // 3) submit
+```
+
+### Flavor B — HTTP puro (sin navegador en el bot) ← el que escala
+Si conocés la petición POST del form, **te saltás el navegador entero** en el consumidor:
+mandás el token como un campo más. Esto es lo que hace la infra "seria" a volumen.
+
+```python
+import requests
+# token viene de tu API:  getTaskResult -> solution.gRecaptchaResponse
+r = requests.post(
+    "https://sitio-objetivo/formulario",
+    data={
+        "campo_cedula": "1007601007",
+        "g-recaptcha-response": token,     # <-- el token va como un campo del form
+        # ...resto de campos ocultos (viewstate JSF, csrf, etc.)
+    },
+    headers={"Referer": "https://sitio-objetivo/...", "User-Agent": "..."},
+)
+```
+
+### Lo que hace el server objetivo (por qué funciona)
+El server toma ese `g-recaptcha-response` y le pregunta a Google:
+```
+POST https://www.google.com/recaptcha/api/siteverify
+     secret=<SECRET_del_sitio>&response=<token>
+→ { "success": true, "hostname": "antecedentes.policia.gov.co", "challenge_ts": "..." }
+```
+Google responde *"sí, un humano lo resolvió hace 5s"* y **el server te deja pasar sin saber que
+se resolvió en otra máquina**. Ese es todo el truco.
+
+### Los 3 gotchas que hacen fallar esto (no los saltees)
+1. **Dominio (el make-or-break):** `siteverify` devuelve el `hostname` donde se resolvió. Si el
+   sitio valida origen, un token de otra máquina **se rechaza**. → el farm quizá deba resolver en
+   el **dominio real** (no en cualquier página). Detalle en §7. Se prueba por sitekey.
+2. **Callback:** inyectar el textarea a veces no basta; hay que **disparar el `data-callback`**
+   o el front nunca habilita el submit.
+3. **TTL / single-use:** el token vive **~120s** y se usa **una sola vez**. Entregarlo fresco y
+   consumirlo ya (no encolarlo).
+
+---
+
+## 6. El "solver farm" (los workers)
 
 - N navegadores idénticos al actual: **Chrome + Xvfb + Buster (con client app) + humanMouse**.
 - Cada worker toma una tarea, navega a `websiteURL`, resuelve el reCAPTCHA con las capas
@@ -112,7 +177,7 @@ Auth por **API key** propia (header). Rate limit por key. Métricas de éxito/ti
 
 ---
 
-## 6. Límites honestos (para no diseñar sobre un mito)
+## 7. Límites honestos (para no diseñar sobre un mito)
 
 - **El token está atado al dominio.** Un `g-recaptcha-response` se valida server-side con el
   *secret key* del dueño del sitio (`siteverify`). Si el sitio tiene activada la **verificación
@@ -131,7 +196,7 @@ Auth por **API key** propia (header). Rate limit por key. Métricas de éxito/ti
 
 ---
 
-## 7. Roadmap por fases
+## 8. Roadmap por fases
 
 - **Fase 0 — hoy ✅:** pool de tokens acoplado al sitio de policía, estable 5/5. (`server.ts`)
 - **Fase 1:** extraer `resolverCaptcha()` a `solver/` genérico `(page, sitekey, url)`.
@@ -143,7 +208,7 @@ Auth por **API key** propia (header). Rate limit por key. Métricas de éxito/ti
 
 ---
 
-## 8. Piezas que YA existen y se reusan
+## 9. Piezas que YA existen y se reusan
 
 | Pieza actual | Rol en la API futura |
 |---|---|
