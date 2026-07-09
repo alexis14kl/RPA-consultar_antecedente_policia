@@ -1,4 +1,5 @@
 import { chromium, Page, Browser, BrowserContext, Frame } from "playwright";
+import { startHumanMouse } from "./helpers/humanMouse";
 import { execFile } from "child_process";
 import { promisify } from "util";
 const execFileAsync = promisify(execFile);
@@ -357,9 +358,11 @@ async function runPoolManager(sid: number = 0): Promise<void> {
       // Resolver un CAPTCHA nuevo
       console.log(`[${label}] Resolviendo CAPTCHA... (pool: ${pool.length}/${POOL_TARGET})`);
       const page = await context!.newPage();
+      const stopMouse = startHumanMouse(page);
       try {
         await irAFormulario(page, label);
         const ok = await resolverCaptcha(page, label);
+        stopMouse();
         if (ok) {
           const solvedAt = Date.now();
           pool.push({ page, solvedAt, expiresAt: solvedAt + TOKEN_MAX_AGE_MS - TOKEN_MIN_BUFFER_MS });
