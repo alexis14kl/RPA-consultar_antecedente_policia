@@ -51,6 +51,23 @@ interface PoolPage {
 const pool: PoolPage[] = [];
 let poolManagerRunning = false;
 
+// ── Mutex de sesión policía ────────────────────────────────────────────────
+// Todas las páginas del pool viven en el MISMO BrowserContext -> comparten el
+// cookie JSESSIONID -> la sesión JSF del sitio de la policía es única. Si dos
+// consultas envían el formulario a la vez, la sesión del servidor se pisa y los
+// resultados se cruzan (una cédula recibe el antecedente de otra). Este lock
+// serializa SOLO el tramo enviar->leer contra la policía; el pre-resuelto de
+// CAPTCHAs del pool sigue corriendo en paralelo.
+let _consultaLock: Promise<void> = Promise.resolve();
+async function acquireConsultaLock(): Promise<() => void> {
+  let release!: () => void;
+  const next = new Promise<void>((r) => (release = r));
+  const prev = _consultaLock;
+  _consultaLock = prev.then(() => next);
+  await prev;
+  return release;
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 function esperar(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -465,25 +482,36 @@ async function ejecutarConsulta(
   console.log(`[W${wid}][CONSULTA] ${tipo.toUpperCase()} ${cedula} — token TTL: ${tokenTTL}s`);
 
   try {
-    // Solo cambiar tipo si es distinto al default (cc) — evita AJAX innecesario
-    const currentTipo = await page.locator("#cedulaTipo").inputValue().catch(() => "cc");
-    if (currentTipo !== tipo) {
-      await page.locator("#cedulaTipo").selectOption(tipo);
-      if (!await rcResuelto(page)) {
-        throw new Error("Token del pool expiró tras selectOption");
+    // Sección crítica serializada: enviar el formulario y leer el resultado
+    // contra la sesión JSF compartida (JSESSIONID único del context). Fuera de
+    // este lock dos consultas concurrentes se pisan y cruzan resultados.
+    const release = await acquireConsultaLock();
+    let url: string;
+    let datos: DatosConsulta;
+    let resultado_raw: string;
+    try {
+      // Solo cambiar tipo si es distinto al default (cc) — evita AJAX innecesario
+      const currentTipo = await page.locator("#cedulaTipo").inputValue().catch(() => "cc");
+      if (currentTipo !== tipo) {
+        await page.locator("#cedulaTipo").selectOption(tipo);
+        if (!await rcResuelto(page)) {
+          throw new Error("Token del pool expiró tras selectOption");
+        }
       }
+
+      await page.locator("#cedulaInput").fill(cedula);
+
+      await page.getByRole("button", { name: /consultar/i }).click();
+      await Promise.race([
+        page.waitForLoadState("networkidle", { timeout: 20000 }),
+        page.locator("#form\\:mensajeCiudadano").waitFor({ state: "visible", timeout: 20000 }),
+      ]).catch(() => {});
+
+      url = page.url();
+      ({ datos, resultado_raw } = await parsearPagina(page, cedula));
+    } finally {
+      release();
     }
-
-    await page.locator("#cedulaInput").fill(cedula);
-
-    await page.getByRole("button", { name: /consultar/i }).click();
-    await Promise.race([
-      page.waitForLoadState("networkidle", { timeout: 20000 }),
-      page.locator("#form\\:mensajeCiudadano").waitFor({ state: "visible", timeout: 20000 }),
-    ]).catch(() => {});
-
-    const url = page.url();
-    const { datos, resultado_raw } = await parsearPagina(page, cedula);
     console.log(`[W${wid}][CONSULTA] OK — ${datos.nombre ?? "?"} | ${datos.estado}`);
 
     // Screenshot
