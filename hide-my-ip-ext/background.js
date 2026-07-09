@@ -730,6 +730,13 @@ async function _autoPickCandidates(preferredCC) {
     const pc = cands.filter(s => String(s.country || '').toUpperCase() === preferredCC.toUpperCase());
     if (pc.length) cands = pc;
   }
+  // Barajar (Fisher-Yates) para que cada arranque pruebe una IP distinta.
+  // Clave para la rotación: sin esto autoConnect siempre pegaría al mismo
+  // primer server (que puede estar quemado en reCAPTCHA).
+  for (let i = cands.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [cands[i], cands[j]] = [cands[j], cands[i]];
+  }
   return cands;
 }
 
