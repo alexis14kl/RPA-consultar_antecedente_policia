@@ -16,6 +16,10 @@ const SERVER_PORT = parseInt(process.env.PORT ?? "3000");
 const SERVER_HOST = process.env.HOST ?? "127.0.0.1";   // 0.0.0.0 en Docker (env HOST) para que el puerto publicado funcione
 const CAPTCHA_TIMEOUT_MS = parseInt(process.env.CAPTCHA_TIMEOUT ?? "35") * 1000;
 const CAPTCHA_TIMEOUT_BLOCKED_MS = parseInt(process.env.CAPTCHA_TIMEOUT_BLOCKED ?? "10") * 1000;
+// Reintentos del audio con Whisper local pidiendo challenge NUEVO (reload) cada vez.
+// Cuando Buster falla ("could not be solved, try again after requesting a new challenge")
+// hay audios confusos que solo Whisper saca → le damos varios audios frescos.
+const AUDIO_MAX_ATTEMPTS = parseInt(process.env.AUDIO_MAX_ATTEMPTS ?? "3");
 const BASE_URL = process.env.BASE_URL ?? `http://localhost:${SERVER_PORT}`;
 const MAX_WORKERS = parseInt(process.env.WORKERS ?? "2");
 const LOTE_STREAM_MAX = parseInt(process.env.LOTE_STREAM_MAX ?? "200");
@@ -229,8 +233,26 @@ async function resolverCaptcha(page: Page, label: string): Promise<boolean> {
         }
       });
 
-      bframe = await getBframe(page);
-      if (bframe) {
+      // Loop de audio: capturar → Whisper → verificar. Si falla (audio confuso que
+      // Buster no pudo, o respuesta incorrecta), pedir un audio NUEVO (reload) y reintentar.
+      let capturaVacia = 0;
+      for (let intento = 0; intento < AUDIO_MAX_ATTEMPTS && !passed; intento++) {
+        bframe = await getBframe(page);
+        if (!bframe) break;
+
+        // Pedir audio FRESCO: en reintentos, o en el 1er intento si Buster ya gastó el
+        // challenge (mensaje de error visible). Esto es el "request a new challenge".
+        const reloadBtn = bframe.locator("#recaptcha-reload-button");
+        const errVisible = await bframe.locator(".rc-audiochallenge-error-message").isVisible().catch(() => false);
+        if ((intento > 0 || errVisible) && await reloadBtn.isVisible().catch(() => false)) {
+          console.log(`[${label}][CAPTCHA] Pidiendo audio nuevo (intento ${intento + 1}/${AUDIO_MAX_ATTEMPTS})...`);
+          audioRequests.clear();
+          await reloadBtn.click().catch(() => {});
+          await esperar(1500);
+          bframe = await getBframe(page);
+          if (!bframe) break;
+        }
+
         const downloadHref = await bframe.locator(".rc-audiochallenge-tdownload-link, a[href*='payload']").getAttribute("href").catch(() => null);
         let requestId: string | null = null;
         for (let i = 0; i < 16; i++) {
@@ -272,6 +294,7 @@ async function resolverCaptcha(page: Page, label: string): Promise<boolean> {
         }
 
         if (audioBuffer && audioBuffer.length > 100) {
+          capturaVacia = 0;
           const mp3Path = path.join(SCRIPT_DIR, `captcha_audio_${label.replace(/[^a-z0-9]/gi, "_")}.mp3`);
           await writeFile(mp3Path, audioBuffer);
           try {
@@ -281,23 +304,31 @@ async function resolverCaptcha(page: Page, label: string): Promise<boolean> {
               { encoding: "utf-8", timeout: 120000 }
             );
             const texto = stdout.trim();
-            console.log(`[${label}][CAPTCHA] Transcripción:`, texto);
+            console.log(`[${label}][CAPTCHA] Transcripción (Whisper):`, texto);
             if (texto.length > 0) {
               await bframe.locator("#audio-response").fill(texto);
               await bframe.locator("#recaptcha-verify-button").click();
               await esperar(3000);
               passed = await rcResuelto(page);
+              if (passed) { console.log(`[${label}][CAPTCHA] Whisper resolvió el audio.`); break; }
+              console.log(`[${label}][CAPTCHA] Audio incorrecto — pido uno nuevo y reintento.`);
             }
           } catch (e) {
             console.log(`[${label}][CAPTCHA] Error transcripción:`, (e as Error).message);
           }
         } else {
-          console.log(`[${label}][CAPTCHA] Audio bloqueado por Google (0 bytes).`);
-          audioBloqueado = true;
-          rateLimit.record();
+          // Sin audio: si Google bloquea el audio (0 bytes) repetido, no insistir.
+          capturaVacia++;
+          console.log(`[${label}][CAPTCHA] Audio no capturado (${capturaVacia}).`);
+          if (capturaVacia >= 2) {
+            console.log(`[${label}][CAPTCHA] Audio bloqueado por Google (0 bytes).`);
+            audioBloqueado = true;
+            rateLimit.record();
+            break;
+          }
         }
-        await cdpSession.detach().catch(() => {});
       }
+      await cdpSession.detach().catch(() => {});
     }
   }
 

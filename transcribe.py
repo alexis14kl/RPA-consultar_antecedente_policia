@@ -1,5 +1,6 @@
 import sys
 import os
+import subprocess
 import urllib.request
 
 # ffmpeg: en Mac/Linux vive en el PATH (brew/apt) y no se toca nada. En Windows,
@@ -9,9 +10,14 @@ FFMPEG_DIR = os.environ.get("FFMPEG_DIR")
 if FFMPEG_DIR and os.path.isdir(FFMPEG_DIR):
     os.environ["PATH"] = FFMPEG_DIR + os.pathsep + os.environ.get("PATH", "")
 
-# Modelo Whisper LOCAL (offline, sin rate-limit — a diferencia de la API web gratis de
-# Google que fallaba). base.en anda bien para los audios de reCAPTCHA (inglés, palabras
-# y dígitos). Override con WHISPER_MODEL (ej. "tiny.en" más rápido / "small.en" más preciso).
+# --- whisper.cpp (STT LOCAL principal) ---------------------------------------
+# C++ nativo, corre rápido en CPU y sin atarse a la versión de Python (el VPS es
+# Python 3.8, donde faster-whisper no instala). Saca los audios "confusos" de
+# reCAPTCHA que Buster no puede. Instalación reproducible: deploy/install_whisper_cpp.sh
+WHISPER_CPP_BIN = os.environ.get("WHISPER_CPP_BIN", "/root/whisper.cpp/build/bin/whisper-cli")
+WHISPER_CPP_MODEL = os.environ.get("WHISPER_CPP_MODEL", "/root/whisper.cpp/models/ggml-base.en.bin")
+
+# Modelo faster-whisper (fallback si algún día se instala en un Python 3.9+).
 WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "base.en")
 
 
@@ -26,13 +32,38 @@ def download_audio(url: str, dest: str):
             f.write(r.read())
 
 
-def mp3_to_wav(mp3_path: str, wav_path: str):
+def mp3_to_wav(mp3_path: str, wav_path: str, rate: int = None):
+    """Convierte a WAV. Si rate está seteado, resamplea mono a esa frecuencia
+    (whisper.cpp requiere PCM 16 kHz mono)."""
     from pydub import AudioSegment
-    AudioSegment.from_file(mp3_path).export(wav_path, format="wav")
+    audio = AudioSegment.from_file(mp3_path)
+    if rate:
+        audio = audio.set_frame_rate(rate).set_channels(1)
+    audio.export(wav_path, format="wav")
+
+
+def transcribe_whispercpp(mp3_path: str) -> str:
+    """Transcripción LOCAL con whisper.cpp (base.en). Requiere WAV 16 kHz mono."""
+    if not (os.path.exists(WHISPER_CPP_BIN) and os.path.exists(WHISPER_CPP_MODEL)):
+        raise RuntimeError(f"whisper.cpp no instalado ({WHISPER_CPP_BIN})")
+    wav = mp3_path.rsplit(".", 1)[0] + ".16k.wav"
+    try:
+        mp3_to_wav(mp3_path, wav, rate=16000)
+        out = subprocess.run(
+            [WHISPER_CPP_BIN, "-m", WHISPER_CPP_MODEL, "-f", wav, "-nt", "-l", "en"],
+            check=True, capture_output=True, text=True, timeout=120,
+        )
+        # -nt (no timestamps) → stdout es solo el texto (a veces con espacios extra).
+        return " ".join(out.stdout.split()).strip().lower()
+    finally:
+        try:
+            os.remove(wav)
+        except OSError:
+            pass
 
 
 def transcribe_whisper(path: str) -> str:
-    """Transcripción LOCAL con faster-whisper (CPU, int8). Decodifica el mp3/wav solo."""
+    """Fallback: faster-whisper (CPU, int8) — solo si está instalado (Python 3.9+)."""
     from faster_whisper import WhisperModel
     model = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8")
     segments, _ = model.transcribe(path, language="en", beam_size=1)
@@ -40,7 +71,7 @@ def transcribe_whisper(path: str) -> str:
 
 
 def transcribe_google(wav_path: str) -> str:
-    """Fallback: API web gratis de Google (rate-limitea; solo si whisper no está)."""
+    """Último fallback: API web gratis de Google (rate-limitea)."""
     import speech_recognition as sr
     r = sr.Recognizer()
     with sr.AudioFile(wav_path) as source:
@@ -49,13 +80,14 @@ def transcribe_google(wav_path: str) -> str:
 
 
 def transcribe_file(mp3_path: str) -> str:
-    # 1) Whisper local (confiable, offline). 2) fallback Google STT web.
-    try:
-        text = transcribe_whisper(mp3_path)
-        if text:
-            return text
-    except Exception as e_w:
-        print(f"Whisper local falló: {e_w}", file=sys.stderr)
+    # 1) whisper.cpp local (principal). 2) faster-whisper si existe. 3) Google STT web.
+    for fn in (transcribe_whispercpp, transcribe_whisper):
+        try:
+            text = fn(mp3_path)
+            if text:
+                return text
+        except Exception as e:
+            print(f"{fn.__name__} falló: {e}", file=sys.stderr)
     wav = mp3_path.replace(".mp3", ".wav")
     try:
         mp3_to_wav(mp3_path, wav)
@@ -66,7 +98,7 @@ def transcribe_file(mp3_path: str) -> str:
             pass
         return text
     except Exception as e1:
-        raise RuntimeError(f"Transcripción falló (whisper local + Google STT): {e1}")
+        raise RuntimeError(f"Transcripción falló (whisper.cpp + faster-whisper + Google STT): {e1}")
 
 
 def transcribe(url: str) -> str:

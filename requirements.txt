@@ -1,0 +1,7 @@
+# Dependencias Python del RPA (transcribe.py). Instalar:  pip3 install -r requirements.txt
+# El STT principal es whisper.cpp (nativo, ver deploy/install_whisper_cpp.sh) — esto es
+# solo para el fallback Google STT y la conversión de audio.
+SpeechRecognition==3.10.4
+pydub==0.25.1
+# (opcional) faster-whisper: solo si el VPS tiene Python >= 3.9. En 3.8 NO instala.
+# faster-whisper==1.0.3
