@@ -62,7 +62,7 @@ if [ "$WAIT_PROXY" = "1" ]; then
   echo "[6] Esperando proxy hide-my-ip (auto-connect)..."
   DIRECT_IP="$(curl -s --max-time 8 https://api.ipify.org 2>/dev/null)"
   if [ -f "$DIR/wait_proxy.cjs" ]; then
-    node "$DIR/wait_proxy.cjs" "$CDP_PORT" "$DIRECT_IP" "${PROXY_WAIT_SECS:-50}" || \
+    node "$DIR/wait_proxy.cjs" "$CDP_PORT" "$DIRECT_IP" "${PROXY_WAIT_SECS:-90}" || \
       echo "⚠️  Proxy no confirmado — el navegador puede seguir en IP directa (reintenta solo cada 60s)."
   fi
 fi
