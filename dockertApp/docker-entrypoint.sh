@@ -29,7 +29,7 @@ pactl list short sinks 2>/dev/null && echo "[AUDIO] null sink activo" || echo "[
 
 # Usar Chrome for Testing (build de Google) en vez del chromium de Debian: Google confía
 # en su propio build y no le bloquea el audio del reCAPTCHA. launch_chrome_linux.sh lee CHROME_BIN.
-export CHROME_BIN="$(ls -d "${PLAYWRIGHT_BROWSERS_PATH:-/ms-playwright}"/chromium-*/chrome-linux/chrome 2>/dev/null | sort -V | tail -1)"
+export CHROME_BIN="$(ls -d "${PLAYWRIGHT_BROWSERS_PATH:-/ms-playwright}"/chromium-*/chrome-linux*/chrome 2>/dev/null | sort -V | tail -1)"
 if [ -n "$CHROME_BIN" ] && [ -x "$CHROME_BIN" ]; then echo "[CHROME] Chrome for Testing: $CHROME_BIN"; else echo "[CHROME] CfT no hallado — usará Debian chromium"; unset CHROME_BIN; fi
 
 # Levanta Xvfb + Chromium con Buster (CDP en 127.0.0.1:9223) y espera a que el CDP responda.
