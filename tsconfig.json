@@ -5,7 +5,14 @@
     "strict": true,
     "esModuleInterop": true,
     "outDir": "./dist",
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
-  "include": ["*.ts"]
+  "include": [
+    "*.ts",
+    "core/**/*.ts",
+    "scrapers/**/*.ts",
+    "helpers/**/*.ts"
+  ]
 }
