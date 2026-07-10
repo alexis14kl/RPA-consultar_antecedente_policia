@@ -20,6 +20,9 @@ const CAPTCHA_TIMEOUT_BLOCKED_MS = parseInt(process.env.CAPTCHA_TIMEOUT_BLOCKED 
 // Cuando Buster falla ("could not be solved, try again after requesting a new challenge")
 // hay audios confusos que solo Whisper saca → le damos varios audios frescos.
 const AUDIO_MAX_ATTEMPTS = parseInt(process.env.AUDIO_MAX_ATTEMPTS ?? "3");
+// Buster oye español con oídos ingleses → en IP datacenter pierde ~20s y no cierra.
+// Default OFF: ir DIRECTO a audio+Whisper (español). USE_BUSTER=1 lo reactiva (útil con IP residencial).
+const USE_BUSTER = process.env.USE_BUSTER === "1";
 const BASE_URL = process.env.BASE_URL ?? `http://localhost:${SERVER_PORT}`;
 const MAX_WORKERS = parseInt(process.env.WORKERS ?? "2");
 const LOTE_STREAM_MAX = parseInt(process.env.LOTE_STREAM_MAX ?? "200");
@@ -249,7 +252,7 @@ async function resolverCaptcha(page: Page, label: string, hm: HumanMouse): Promi
   }
 
   let bframe: Frame | null = null;
-  if (!passed) {
+  if (USE_BUSTER && !passed) {   // toggle: saltear Buster e ir a audio+Whisper (ver USE_BUSTER)
     let hasHolder = false;
     for (let w = 0; w < 15 && !hasHolder; w++) {
       await esperar(1000);
