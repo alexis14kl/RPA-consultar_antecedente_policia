@@ -641,10 +641,11 @@ async function ejecutarConsulta(
         }
       }
 
-      const hmC = createHumanMouse(page); // tipeo/click humano en la consulta
-      await hmC.type(page.locator("#cedulaInput"), cedula);
-      await hmC.click(page.getByRole("button", { name: /consultar/i }));
-      hmC.stop();
+      // Submit CONFIABLE (.fill/.click): el token ya se generó con el checkbox HUMANO
+      // durante el pre-resuelto; reCAPTCHA no re-puntúa el tipeo de la cédula. El humano
+      // solo sumaba flakiness acá (boundingBox null en página de token stale).
+      await page.locator("#cedulaInput").fill(cedula);
+      await page.getByRole("button", { name: /consultar/i }).click();
       // Esperar el CONTENEDOR del resultado ANTES de parsear (no la carrera con
       // networkidle, que puede ganar antes de que el JSF renderice el resultado → parse
       // prematuro = NO DETERMINADO aunque el resultado sí cargue). El screenshot ya lo esperaba.
