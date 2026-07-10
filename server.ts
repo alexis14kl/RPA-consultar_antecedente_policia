@@ -56,6 +56,44 @@ interface PoolPage {
 const pool: PoolPage[] = [];
 let poolManagerRunning = false;
 
+// ── Reaper de páginas (anti-leak) ──────────────────────────────────────────
+// Cada token del pool es una PÁGINA abierta; bajo carga/fallo el close() se
+// atrasa (o Chrome restaura sesión) y las páginas se acumulan — vimos 18, que
+// satura el CDP (2 cores) y parece firma de ataque. inFlight = páginas que un
+// solver está resolviendo o una consulta está usando (fuera del pool[] en ese
+// momento). El reaper cierra TODA página que no esté ni en pool[] ni en inFlight.
+const inFlight = new Set<Page>();
+const REAPER_INTERVAL_MS = parseInt(process.env.REAPER_INTERVAL ?? "20000");
+const MAX_PAGES = POOL_TARGET + POOL_SOLVERS + 3;
+
+// Cierre con timeout: si el renderer está colgado, no bloquea el loop (el reaper
+// reintenta en la próxima pasada porque la página sigue fuera de pool/inFlight).
+async function closePageSafe(page: Page): Promise<void> {
+  await Promise.race([
+    page.close().catch(() => {}),
+    new Promise((r) => setTimeout(r, 3000)),
+  ]);
+}
+
+async function reapPages(): Promise<void> {
+  if (!context) return;
+  const legit = new Set<Page>(pool.map((t) => t.page));
+  for (const p of inFlight) legit.add(p);
+  const all = context.pages();
+  let closed = 0;
+  for (const p of all) {
+    if (legit.has(p)) continue;
+    await closePageSafe(p);
+    closed++;
+  }
+  const remaining = context.pages().length;
+  if (closed > 0) {
+    console.log(`[REAPER] cerró ${closed} página(s) huérfana(s) — abiertas: ${remaining} (pool: ${pool.length}, inFlight: ${inFlight.size})`);
+  } else if (remaining > MAX_PAGES) {
+    console.warn(`[REAPER] ⚠️ ${remaining} páginas abiertas (esperado ≤${MAX_PAGES})`);
+  }
+}
+
 // ── Mutex de sesión policía ────────────────────────────────────────────────
 // Todas las páginas del pool viven en el MISMO BrowserContext -> comparten el
 // cookie JSESSIONID -> la sesión JSF del sitio de la policía es única. Si dos
@@ -389,6 +427,7 @@ async function runPoolManager(sid: number = 0): Promise<void> {
       // Resolver un CAPTCHA nuevo
       console.log(`[${label}] Resolviendo CAPTCHA... (pool: ${pool.length}/${POOL_TARGET})`);
       const page = await context!.newPage();
+      inFlight.add(page);
       const stopMouse = startHumanMouse(page);
       try {
         await irAFormulario(page, label);
@@ -399,14 +438,17 @@ async function runPoolManager(sid: number = 0): Promise<void> {
           pool.push({ page, solvedAt, expiresAt: solvedAt + TOKEN_MAX_AGE_MS - TOKEN_MIN_BUFFER_MS });
           console.log(`[${label}] Token listo ✓ (pool: ${pool.length}/${POOL_TARGET})`);
         } else {
-          await page.close().catch(() => {});
+          await closePageSafe(page);
           console.log(`[${label}] CAPTCHA no resuelto — reintentando en 3s`);
           await esperar(3000);
         }
       } catch (e) {
-        await page.close().catch(() => {});
+        stopMouse();
+        await closePageSafe(page);
         console.log(`[${label}] Error: ${(e as Error).message} — reintentando en 3s`);
         await esperar(3000);
+      } finally {
+        inFlight.delete(page); // si quedó en pool[], el pool lo trackea; si no, se cerró
       }
     } catch (e) {
       console.error(`[${label}] Error inesperado: ${(e as Error).message}`);
@@ -429,13 +471,15 @@ async function getPoolPage(): Promise<PoolPage> {
     }
     if (pool.length > 0) {
       const token = pool.pop()!; // LIFO — toma el más reciente (fresco)
+      inFlight.add(token.page);  // ya no está en pool[] → protegerlo del reaper
       if (!await rcResuelto(token.page)) {
-        await token.page.close().catch(() => {});
+        inFlight.delete(token.page);
+        await closePageSafe(token.page);
         console.log(`[POOL] Token inválido descartado (rcResuelto=false)`);
         continue;
       }
       if (waited) semaphore.trackReady();
-      return token;
+      return token; // ejecutarConsulta lo saca de inFlight al cerrarlo
     }
     if (!waited) { semaphore.trackWait(); waited = true; }
     await esperar(300);
@@ -571,7 +615,8 @@ async function ejecutarConsulta(
     return { cedula, tipo, datos, resultado_raw, url, screenshot_url };
   } finally {
     // Página usada — cerrar (pool manager crea nuevas)
-    await page.close().catch(() => {});
+    inFlight.delete(page);
+    await closePageSafe(page);
   }
 }
 
@@ -703,6 +748,10 @@ async function initBrowser(): Promise<void> {
     };
     setTimeout(() => startSolver(sid), sid * 5000);
   }
+
+  // Reaper anti-leak: cierra páginas huérfanas (close colgado, sesión restaurada)
+  // cada REAPER_INTERVAL_MS. Garantiza que solo queden abiertas las de pool+inFlight.
+  setInterval(() => { reapPages().catch(() => {}); }, REAPER_INTERVAL_MS);
 
   // Esperar al menos 1 token en el pool antes de aceptar tráfico
   console.log("Esperando primer token del pool...");
