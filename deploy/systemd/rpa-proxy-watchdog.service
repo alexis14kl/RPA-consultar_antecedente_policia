@@ -1,7 +1,9 @@
 [Unit]
 Description=RPA — watchdog del proxy (rota hide-my-ip cuando Google bloquea la IP)
 After=rpa-chrome.service rpa-server.service
-Requires=rpa-chrome.service
+# Wants (no Requires): el watchdog reinicia rpa-chrome cuando lo detecta
+# CONGELADO; con Requires ese restart se lo tumbaría a sí mismo (cascade).
+Wants=rpa-chrome.service
 
 [Service]
 Type=simple

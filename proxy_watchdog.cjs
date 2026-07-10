@@ -22,8 +22,15 @@ const WINDOW_SECS         = parseInt(process.env.WD_WINDOW        || '40', 10); 
 const BLOCK_THRESHOLD     = parseInt(process.env.WD_THRESHOLD     || '2', 10);     // "Audio bloqueado" p/ rotar
 const PROXY_ERR_THRESHOLD = parseInt(process.env.WD_PROXY_ERR     || '1', 10);     // errores de conexión p/ rotar (muerto)
 const POOL_LOW            = parseInt(process.env.WD_POOL_LOW      || '2', 10);     // pool "bajo"
-const COOLDOWN_MS         = parseInt(process.env.WD_COOLDOWN      || '45000', 10); // mínimo entre rotaciones
+const COOLDOWN_MS         = parseInt(process.env.WD_COOLDOWN      || '45000', 10); // mínimo entre acciones disruptivas
 const GRACE_MS            = parseInt(process.env.WD_GRACE_MS      || '6000', 10);  // esperar que el proxy nuevo levante
+// Chrome CONGELADO: /json/version responde pero connectOverCDP cuelga (main thread
+// bloqueado). connectOverCDP se queda ~8s por intento y la reconexión del server no
+// se auto-cura → hay que reiniciar rpa-chrome. FROZEN_STREAK checks seguidos p/ evitar
+// falsos positivos en el arranque de Chrome (CDP tarda un pelín en aceptar comandos).
+const FROZEN_STREAK       = parseInt(process.env.WD_FROZEN_STREAK || '2', 10);     // checks congelados seguidos p/ restart
+const FROZEN_GRACE_MS     = parseInt(process.env.WD_FROZEN_GRACE  || '25000', 10); // esperar que Chrome+CDP relevanten
+const CHROME_RESTART_CMD  = process.env.WD_CHROME_RESTART_CMD || 'systemctl restart --no-block rpa-chrome'; // override p/ test
 
 // Errores de conexión = proxy MUERTO (no enruta / no responde).
 const PROXY_ERR_RE = /ERR_PROXY_CONNECTION_FAILED|ERR_TUNNEL_CONNECTION_FAILED|ERR_SOCKS_CONNECTION_FAILED|ERR_PROXY_CERTIFICATE_INVALID/g;
@@ -40,6 +47,13 @@ function poolLevel() {
     const m = out.match(/"pool":(\d+)/);
     return m ? parseInt(m[1], 10) : null;
   } catch { return null; }
+}
+// El endpoint HTTP del CDP responde desde un thread aparte: si responde con
+// connectOverCDP colgado, Chrome está CONGELADO (no caído). Si NO responde, está
+// caído/levantando → systemd/launch se encarga, no forzamos restart.
+function jsonVersionAlive() {
+  try { execSync(`curl -sf --max-time 3 http://127.0.0.1:${PORT}/json/version`, { stdio: 'ignore' }); return true; }
+  catch { return false; }
 }
 async function getSW(ctx) {
   for (let i = 0; i < 15; i++) {
@@ -61,21 +75,48 @@ async function rotate(sw) {
 
 (async () => {
   let b = null, ctx = null, sw = null;
+  // Estados: 'ok' (CDP responde + SW del proxy) | 'no-cdp' (connectOverCDP falló →
+  // congelado o caído) | 'no-sw' (CDP OK pero sin service-worker → NO es congelado).
   async function ensure() {
     try {
-      if (b && b.isConnected()) { if (sw) return true; }
+      if (b && b.isConnected()) { if (sw) return 'ok'; }
       b = await chromium.connectOverCDP({ endpointURL: 'http://127.0.0.1:' + PORT, timeout: 8000 });
       ctx = b.contexts()[0];
       sw = await getSW(ctx);
-      return !!sw;
-    } catch { b = null; sw = null; return false; }
+      return sw ? 'ok' : 'no-sw';
+    } catch { b = null; sw = null; return 'no-cdp'; }
   }
 
-  console.log(`[watchdog] iniciado — rota si proxy MUERTO (>=${PROXY_ERR_THRESHOLD} err conexión) o FLAGEADO (>=${BLOCK_THRESHOLD} bloqueos/${WINDOW_SECS}s, pool<${POOL_LOW}); grace ${GRACE_MS}ms`);
-  let lastRotate = 0;
+  console.log(`[watchdog] iniciado — rota si proxy MUERTO (>=${PROXY_ERR_THRESHOLD} err conexión) o FLAGEADO (>=${BLOCK_THRESHOLD} bloqueos/${WINDOW_SECS}s, pool<${POOL_LOW}); reinicia Chrome si CONGELADO (>=${FROZEN_STREAK} checks); grace ${GRACE_MS}ms`);
+  let lastRotate = 0;   // cooldown compartido: no rotar proxy y reiniciar Chrome pegados
+  let frozenStreak = 0;
   for (;;) {
     await sleep(CHECK_EVERY_MS);
-    if (!(await ensure())) { console.log('[watchdog] sin CDP/service-worker, reintento...'); continue; }
+    const st = await ensure();
+    if (st !== 'ok') {
+      if (st === 'no-cdp' && jsonVersionAlive()) {
+        // connectOverCDP falla pero el HTTP del CDP responde → Chrome CONGELADO.
+        frozenStreak++;
+        console.log(`[watchdog] ⚠️ CDP congelado (/json/version OK pero connectOverCDP falla) — streak ${frozenStreak}/${FROZEN_STREAK}`);
+        if (frozenStreak >= FROZEN_STREAK && (Date.now() - lastRotate) > COOLDOWN_MS) {
+          console.log(`[watchdog] 🧊 Chrome CONGELADO → ${CHROME_RESTART_CMD}`);
+          try { execSync(CHROME_RESTART_CMD, { stdio: 'ignore' }); }
+          catch (e) { console.log('[watchdog] restart falló: ' + e.message); }
+          lastRotate = Date.now();
+          frozenStreak = 0;
+          b = null; sw = null; // forzar reconexión al Chrome nuevo
+          console.log(`[watchdog] ⏳ grace ${FROZEN_GRACE_MS}ms — dejando que Chrome+CDP relevanten...`);
+          await sleep(FROZEN_GRACE_MS);
+        }
+      } else {
+        // 'no-cdp' sin HTTP = Chrome caído/levantando (systemd se encarga);
+        // 'no-sw' = CDP OK pero falta el service-worker del proxy. Ninguno es congelado.
+        frozenStreak = 0;
+        console.log(`[watchdog] ${st === 'no-sw' ? 'CDP OK pero sin service-worker del proxy' : 'sin CDP (Chrome caído/levantando)'}, reintento...`);
+      }
+      continue;
+    }
+    frozenStreak = 0; // ensure() OK → Chrome responde comandos, no está congelado
 
     const journal = recentJournal();
     const proxyErrs = (journal.match(PROXY_ERR_RE) || []).length;
