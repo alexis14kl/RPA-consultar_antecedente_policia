@@ -1,4 +1,4 @@
-import { chromium, Page, Browser, BrowserContext, Frame } from "playwright";
+import { chromium, Page, Browser, BrowserContext, Frame, CDPSession } from "playwright";
 import { startHumanMouse } from "./helpers/humanMouse";
 import { execFile } from "child_process";
 import { promisify } from "util";
@@ -43,10 +43,11 @@ const POOL_WAIT_MS = parseInt(process.env.POOL_WAIT ?? "45") * 1000;     // máx
 const SCREENSHOTS_DIR = path.join(SCRIPT_DIR, "screenshots");
 mkdirSync(SCREENSHOTS_DIR, { recursive: true });
 
-// ── Browser global ─────────────────────────────────────────────────────────
-let browser: Browser | null = null;
-let context: BrowserContext | null = null;
-let reconnecting = false; // guard: un solo loop de reconexión al CDP a la vez
+// ── Conexión CDP ───────────────────────────────────────────────────────────
+// El browser/context/reconnecting viven encapsulados en la clase CdpConnection
+// (instancia única `cdp`, definida más abajo junto a su ciclo de vida). Node ya
+// garantiza 1 instancia por módulo; la clase solo le da un dueño con interfaz
+// controlada (nadie fuera reasigna el context).
 
 // ── Tracker de consultas activas (sin bloqueo — pool es el limitador) ──────
 class Semaphore {
@@ -90,17 +91,18 @@ async function closePageSafe(page: Page): Promise<void> {
 }
 
 async function reapPages(): Promise<void> {
-  if (!context) return;
+  const ctx = cdp.context;
+  if (!ctx) return;
   const legit = new Set<Page>(pool.map((t) => t.page));
   for (const p of inFlight) legit.add(p);
-  const all = context.pages();
+  const all = ctx.pages();
   let closed = 0;
   for (const p of all) {
     if (legit.has(p)) continue;
     await closePageSafe(p);
     closed++;
   }
-  const remaining = context.pages().length;
+  const remaining = ctx.pages().length;
   if (closed > 0) {
     console.log(`[REAPER] cerró ${closed} página(s) huérfana(s) — abiertas: ${remaining} (pool: ${pool.length}, inFlight: ${inFlight.size})`);
   } else if (remaining > MAX_PAGES) {
@@ -274,7 +276,7 @@ async function resolverCaptcha(page: Page, label: string): Promise<boolean> {
         }
       }
 
-      const cdpSession = await context!.newCDPSession(page);
+      const cdpSession = await cdp.newCDPSession(page);
       await cdpSession.send("Network.enable");
       const audioRequests: Map<string, string> = new Map();
       cdpSession.on("Network.responseReceived", (evt: any) => {
@@ -442,7 +444,7 @@ async function runPoolManager(sid: number = 0): Promise<void> {
 
       // Resolver un CAPTCHA nuevo
       console.log(`[${label}] Resolviendo CAPTCHA... (pool: ${pool.length}/${POOL_TARGET})`);
-      const page = await context!.newPage();
+      const page = await cdp.newPage();
       inFlight.add(page);
       const stopMouse = startHumanMouse(page);
       try {
@@ -732,69 +734,98 @@ function encolarLote(items: { cedula: string; tipo: string }[]): Promise<any>[] 
   return items.map(item => encolarConsulta(item.cedula, item.tipo));
 }
 
-// ── Conexión al CDP (inicial y reconexión) ─────────────────────────────────
-// Conecta al Chrome vía CDP, toma el context y aplica el init-script + el handler
-// que cierra tabs espurias. Registra "disconnected" para que una caída de Chrome
-// dispare la reconexión en vez de dejar el server vivo-pero-inútil (context muerto).
-async function connectCDP(): Promise<void> {
-  browser = await chromium.connectOverCDP(`http://127.0.0.1:${CDP_PORT}`);
-  const ctxList = browser.contexts();
-  context = ctxList.length > 0 ? ctxList[0] : await browser.newContext();
+// ── CdpConnection — dueño único del browser/context + reconexión ───────────
+// Encapsula el ciclo de vida del CDP: conectar, entregar páginas del context
+// vivo, y reconectar solo si Chrome se cae. Instancia única `cdp` (abajo).
+class CdpConnection {
+  private _browser: Browser | null = null;
+  private _context: BrowserContext | null = null;
+  private _reconnecting = false; // guard: un solo loop de reconexión a la vez
 
-  await context.addInitScript(() => {
-    Object.defineProperty(navigator, "webdriver", { get: () => undefined });
-    delete (window as any).cdc_adoQpoasnfa76pfcZLmcfl_Array;
-    delete (window as any).cdc_adoQpoasnfa76pfcZLmcfl_Promise;
-    delete (window as any).cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
-    window.open = () => null;
-  });
+  // Nullable a propósito: el reaper lo consulta y hace no-op si aún no hay context.
+  get context(): BrowserContext | null { return this._context; }
 
-  // Cerrar tabs que extensiones abran automáticamente
-  const browserCdp = await browser.newBrowserCDPSession();
-  await browserCdp.send("Target.setDiscoverTargets", { discover: true });
-  browserCdp.on("Target.targetCreated", async (event: any) => {
-    const t = event.targetInfo;
-    if (t.type === "page" && t.url !== "about:blank" && !t.url.includes("antecedentes.policia.gov.co")) {
-      await browserCdp.send("Target.closeTarget", { targetId: t.targetId }).catch(() => {});
-    }
-  });
+  // Páginas SIEMPRE del context vivo. Lanzan si estamos sin conexión (arranque
+  // o reconexión en curso) — el llamador ya trata el error como fallo transitorio.
+  async newPage(): Promise<Page> {
+    if (!this._context) throw new Error("CDP sin context (reconectando)");
+    return this._context.newPage();
+  }
+  async newCDPSession(page: Page): Promise<CDPSession> {
+    if (!this._context) throw new Error("CDP sin context (reconectando)");
+    return this._context.newCDPSession(page);
+  }
 
-  // Desacople runtime: si rpa-chrome reinicia/cae, NO morir → reconectar al CDP.
-  browser.on("disconnected", onDisconnect);
-}
+  // Conecta (o reconecta) al Chrome vía CDP, toma el context, aplica el
+  // init-script anti-automatización y el handler que cierra tabs espurias.
+  async connect(): Promise<void> {
+    this._browser = await chromium.connectOverCDP(`http://127.0.0.1:${CDP_PORT}`);
+    const ctxList = this._browser.contexts();
+    this._context = ctxList.length > 0 ? ctxList[0] : await this._browser.newContext();
 
-// Chrome se desconectó (crash, `systemctl restart rpa-chrome`, CDP caído). Los
-// tokens del pool son páginas de un Chrome que ya no existe → inservibles: se
-// descartan y arranca el loop de reconexión (el guard evita loops paralelos).
-function onDisconnect(): void {
-  if (reconnecting) return;
-  reconnecting = true;
-  console.warn("[CDP] Browser desconectado — descarto pool muerto y reconecto...");
-  pool.length = 0;
-  inFlight.clear();
-  reconnectLoop();
-}
+    await this._context.addInitScript(() => {
+      Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+      delete (window as any).cdc_adoQpoasnfa76pfcZLmcfl_Array;
+      delete (window as any).cdc_adoQpoasnfa76pfcZLmcfl_Promise;
+      delete (window as any).cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
+      window.open = () => null;
+    });
 
-// Reintenta connectOverCDP hasta que el CDP vuelva. Los solvers (runPoolManager)
-// siguen vivos en su loop; al reasignarse `context` global reanudan solos.
-async function reconnectLoop(): Promise<void> {
-  let intento = 0;
-  while (true) {
-    intento++;
-    try {
-      if (await cdpActivo(CDP_PORT)) {
-        await asegurarPagina(CDP_PORT);
-        await connectCDP();
-        reconnecting = false;
-        console.log(`[CDP] Reconectado ✓ (intento ${intento}) — los solvers reanudan.`);
-        return;
+    // Cerrar tabs que extensiones abran automáticamente
+    const browserCdp = await this._browser.newBrowserCDPSession();
+    await browserCdp.send("Target.setDiscoverTargets", { discover: true });
+    browserCdp.on("Target.targetCreated", async (event: any) => {
+      const t = event.targetInfo;
+      if (t.type === "page" && t.url !== "about:blank" && !t.url.includes("antecedentes.policia.gov.co")) {
+        await browserCdp.send("Target.closeTarget", { targetId: t.targetId }).catch(() => {});
       }
-    } catch (e) {
-      console.warn(`[CDP] Reconexión intento ${intento} falló: ${(e as Error).message}`);
+    });
+
+    // Desacople runtime: si rpa-chrome reinicia/cae, NO morir → reconectar al CDP.
+    this._browser.on("disconnected", () => this.onDisconnect());
+  }
+
+  // Chrome se desconectó (crash, `systemctl restart rpa-chrome`, CDP caído). Los
+  // tokens del pool son páginas de un Chrome que ya no existe → inservibles: se
+  // descartan y arranca el loop de reconexión (el guard evita loops paralelos).
+  private onDisconnect(): void {
+    if (this._reconnecting) return;
+    this._reconnecting = true;
+    console.warn("[CDP] Browser desconectado — descarto pool muerto y reconecto...");
+    pool.length = 0;
+    inFlight.clear();
+    this.reconnect();
+  }
+
+  // Reintenta connectOverCDP hasta que el CDP vuelva. Los solvers siguen vivos en
+  // su loop; al reasignarse el context interno reanudan solos (vía cdp.newPage()).
+  private async reconnect(): Promise<void> {
+    let intento = 0;
+    while (true) {
+      intento++;
+      try {
+        if (await cdpActivo(CDP_PORT)) {
+          await asegurarPagina(CDP_PORT);
+          await this.connect();
+          this._reconnecting = false;
+          console.log(`[CDP] Reconectado ✓ (intento ${intento}) — los solvers reanudan.`);
+          return;
+        }
+      } catch (e) {
+        console.warn(`[CDP] Reconexión intento ${intento} falló: ${(e as Error).message}`);
+      }
+      await esperar(3000);
     }
-    await esperar(3000);
+  }
+
+  // Cierre a propósito (SIGTERM): latchea reconnecting para que "disconnected"
+  // NO dispare una reconexión mientras el proceso se apaga.
+  async close(): Promise<void> {
+    this._reconnecting = true;
+    await this._browser?.close().catch(() => {});
   }
 }
+const cdp = new CdpConnection();
 
 // ── Inicializar browser ────────────────────────────────────────────────────
 async function initBrowser(): Promise<void> {
@@ -803,7 +834,7 @@ async function initBrowser(): Promise<void> {
   }
   await asegurarPagina(CDP_PORT);
   console.log("CDP activo — conectando browser...");
-  await connectCDP();
+  await cdp.connect();
 
   semaphore = new Semaphore();
 
@@ -1013,9 +1044,8 @@ const server = http.createServer(async (req, res) => {
   // Graceful shutdown
   const shutdown = async (signal: string) => {
     console.log(`\n[${signal}] Cerrando...`);
-    reconnecting = true; // cierre a propósito → que "disconnected" NO dispare reconexión
     server.close();
-    await browser?.close().catch(() => {});
+    await cdp.close(); // latchea reconnecting → "disconnected" no reconecta al apagar
     process.exit(0);
   };
   process.on("SIGTERM", () => shutdown("SIGTERM"));
