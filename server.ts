@@ -1,5 +1,5 @@
 import { chromium, Page, Browser, BrowserContext, Frame, CDPSession } from "playwright";
-import { startHumanMouse } from "./helpers/humanMouse";
+import { createHumanMouse, HumanMouse } from "./helpers/humanInteract";
 import { execFile } from "child_process";
 import { promisify } from "util";
 const execFileAsync = promisify(execFile);
@@ -225,13 +225,15 @@ const rateLimit = {
 };
 
 // ── Resolver reCAPTCHA ─────────────────────────────────────────────────────
-async function resolverCaptcha(page: Page, label: string): Promise<boolean> {
+async function resolverCaptcha(page: Page, label: string, hm: HumanMouse): Promise<boolean> {
   await rateLimit.waitIfLimited();
   let audioBloqueado = false;
   const recaptchaFrame = page.frameLocator('iframe[title="reCAPTCHA"]');
   await recaptchaFrame.locator("#recaptcha-anchor > div:first-child").waitFor({ state: "visible", timeout: 15000 });
-  await recaptchaFrame.locator("#recaptcha-anchor > div:first-child").click();
-  console.log(`[${label}][CAPTCHA] Checkbox clickeado...`);
+  // Click HUMANO del checkbox (aproximación con curva + hover + presión real). Esto es
+  // lo que reCAPTCHA más puntúa: un click sintético que "teletransporta" grita bot.
+  await hm.click(recaptchaFrame.locator("#recaptcha-anchor > div:first-child"));
+  console.log(`[${label}][CAPTCHA] Checkbox clickeado (humano, perfil: ${hm.profile.name})...`);
 
   let passed = false;
   for (let i = 0; i < 16 && !passed; i++) {
@@ -413,12 +415,12 @@ async function resolverCaptcha(page: Page, label: string): Promise<boolean> {
 }
 
 // ── Formulario ─────────────────────────────────────────────────────────────
-async function irAFormulario(page: Page, label: string): Promise<void> {
+async function irAFormulario(page: Page, label: string, hm: HumanMouse): Promise<void> {
   await page.goto(URL_SITE, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.locator('[id="aceptaOption:0"]').waitFor({ state: "visible", timeout: 10000 });
-  await page.locator('[id="aceptaOption:0"]').click();
+  await hm.click(page.locator('[id="aceptaOption:0"]'));      // click humano (aceptar términos)
   await page.locator('[id="continuarBtn"]').waitFor({ state: "visible", timeout: 10000 });
-  await page.locator('[id="continuarBtn"]').click();
+  await hm.click(page.locator('[id="continuarBtn"]'));        // click humano (continuar)
   await page.locator("#cedulaInput").waitFor({ state: "visible", timeout: 15000 });
   console.log(`[${label}][NAV] Formulario listo.`);
 }
@@ -475,11 +477,12 @@ async function runPoolManager(sid: number = 0): Promise<void> {
       console.log(`[${label}] Resolviendo CAPTCHA... (pool: ${pool.length}/${POOL_TARGET})`);
       const page = await cdp.newPage();
       inFlight.add(page);
-      const stopMouse = startHumanMouse(page);
+      const hm = createHumanMouse(page); // mouse humano unificado (idle + clicks deliberados)
+      hm.startIdle();
       try {
-        await irAFormulario(page, label);
-        const ok = await resolverCaptcha(page, label);
-        stopMouse();
+        await irAFormulario(page, label, hm);
+        const ok = await resolverCaptcha(page, label, hm);
+        hm.stop();
         if (ok) {
           circuitFails = 0; // éxito → cerrar el circuito
           const solvedAt = Date.now();
@@ -492,7 +495,7 @@ async function runPoolManager(sid: number = 0): Promise<void> {
           await esperar(3000);
         }
       } catch (e) {
-        stopMouse();
+        hm.stop();
         await closePageSafe(page);
         registrarFalloCaptcha(label); // intento fallido (proxy muerto, nav timeout, etc.)
         console.log(`[${label}] Error: ${(e as Error).message} — reintentando en 3s`);
@@ -635,9 +638,10 @@ async function ejecutarConsulta(
         }
       }
 
-      await page.locator("#cedulaInput").fill(cedula);
-
-      await page.getByRole("button", { name: /consultar/i }).click();
+      const hmC = createHumanMouse(page); // tipeo/click humano en la consulta
+      await hmC.type(page.locator("#cedulaInput"), cedula);
+      await hmC.click(page.getByRole("button", { name: /consultar/i }));
+      hmC.stop();
       await Promise.race([
         page.waitForLoadState("networkidle", { timeout: 20000 }),
         page.locator("#form\\:mensajeCiudadano").waitFor({ state: "visible", timeout: 20000 }),
