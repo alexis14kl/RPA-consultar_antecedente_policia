@@ -35,6 +35,11 @@ const TOKEN_MAX_AGE_MS = 100_000;
 const POOL_IDLE = parseInt(process.env.POOL_IDLE ?? "1");
 const DEMAND_WINDOW_MS = parseInt(process.env.DEMAND_WINDOW ?? "120") * 1000;
 let lastDemandAt = 0;
+// Disponibilidad: NO atar la apertura del puerto al pool. El server escucha SIEMPRE
+// (tras un warmup acotado para arrancar tibio); si no hay token, una consulta espera
+// POOL_WAIT_MS y si no llega devuelve 503 (no cuelga 120s, no crash-loop de systemd).
+const POOL_WARMUP_MS = parseInt(process.env.POOL_WARMUP ?? "20") * 1000; // espera tibia máx antes de escuchar igual
+const POOL_WAIT_MS = parseInt(process.env.POOL_WAIT ?? "45") * 1000;     // máx que una consulta espera un token → si no, 503
 const SCREENSHOTS_DIR = path.join(SCRIPT_DIR, "screenshots");
 mkdirSync(SCREENSHOTS_DIR, { recursive: true });
 
@@ -473,6 +478,7 @@ const TOKEN_MIN_BUFFER_MS = 3_000;
 async function getPoolPage(): Promise<PoolPage> {
   lastDemandAt = Date.now(); // hay una consulta pidiendo token → el pool sube a POOL_TARGET
   let waited = false;
+  const deadline = Date.now() + POOL_WAIT_MS; // si no llega token en este tiempo → 503
   while (true) {
     // Limpiar expirados del frente (los más viejos)
     while (pool.length > 0 && Date.now() > pool[0].expiresAt) {
@@ -491,6 +497,12 @@ async function getPoolPage(): Promise<PoolPage> {
       }
       if (waited) semaphore.trackReady();
       return token; // ejecutarConsulta lo saca de inFlight al cerrarlo
+    }
+    if (Date.now() > deadline) {
+      if (waited) semaphore.trackReady(); // balancear el contador de espera del semáforo
+      const err: any = new Error("Sin tokens disponibles (pool vacío) — reintentá en unos segundos");
+      err.poolUnavailable = true; // → el handler devuelve 503, no 500 (no cuelga 120s)
+      throw err;
     }
     if (!waited) { semaphore.trackWait(); waited = true; }
     await esperar(300);
@@ -673,6 +685,7 @@ async function ejecutarConReintentos(cedula: string, tipo: string): Promise<any>
         }
         return result;
       } catch (e) {
+        if ((e as any).poolUnavailable) throw e; // pool vacío: reintentar no ayuda → propagar 503
         intentos++;
         if (intentos < MAX_INTENTOS) {
           console.log(`[R${wid}][RETRY] fallo intento ${intentos}/${MAX_INTENTOS}: ${(e as Error).message}`);
@@ -764,10 +777,14 @@ async function initBrowser(): Promise<void> {
   // cada REAPER_INTERVAL_MS. Garantiza que solo queden abiertas las de pool+inFlight.
   setInterval(() => { reapPages().catch(() => {}); }, REAPER_INTERVAL_MS);
 
-  // Esperar al menos 1 token en el pool antes de aceptar tráfico
-  console.log("Esperando primer token del pool...");
-  while (pool.length === 0) await esperar(500);
-  console.log(`Pool listo — semáforo de ${MAX_WORKERS} slot(s) activo.`);
+  // Warmup ACOTADO: esperar el 1er token para arrancar tibio, pero NO bloquear la
+  // apertura del puerto. Si no llena en POOL_WARMUP_MS, initBrowser retorna igual → el
+  // server escucha y devuelve 503 hasta que llene. Mata el 502 total + crash-loop.
+  console.log("Warmup del pool (esperando 1er token, luego escucho igual)...");
+  const warmupDeadline = Date.now() + POOL_WARMUP_MS;
+  while (pool.length === 0 && Date.now() < warmupDeadline) await esperar(500);
+  if (pool.length > 0) console.log(`Pool listo con ${pool.length} token(s) — semáforo de ${MAX_WORKERS} slot(s).`);
+  else console.log(`Sin token tras ${POOL_WARMUP_MS / 1000}s — abro el puerto igual (503 hasta que el pool llene).`);
 }
 
 // ── Servidor HTTP ──────────────────────────────────────────────────────────
@@ -844,8 +861,11 @@ const server = http.createServer(async (req, res) => {
       const result = await encolarConsulta(cedula, tipo);
       return jsonResp(res, 200, { ok: true, ...result });
     } catch (e: any) {
-      console.error("[ERROR]", e.message);
-      return jsonResp(res, 500, { ok: false, cedula, error: e.message });
+      // Pool vacío → 503 (Service Unavailable, reintentable) en vez de 500. Nunca 502 total.
+      const status = e.poolUnavailable ? 503 : 500;
+      if (status === 503) console.warn("[503]", e.message);
+      else console.error("[ERROR]", e.message);
+      return jsonResp(res, status, { ok: false, cedula, error: e.message });
     }
   }
 
