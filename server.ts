@@ -2,7 +2,8 @@
 // Toda la lógica vive en clases (core/ y scrapers/). Este archivo solo cablea env → config.
 import { mkdirSync } from "fs";
 import path from "path";
-import { RpaServer, RpaConfig } from "./RpaServer";
+import { RpaConfig } from "./RpaServer";
+import { RpaBuilder } from "./RpaBuilder";
 
 const SCRIPT_DIR = __dirname;
 const SERVER_PORT = parseInt(process.env.PORT ?? "3000");
@@ -47,4 +48,5 @@ const cfg: RpaConfig = {
   },
 };
 
-new RpaServer(cfg).start();
+// Builder: ensambla todo el grafo y arranca. El cableado vive en RpaBuilder.
+new RpaBuilder().withConfig(cfg).build().start();

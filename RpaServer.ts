@@ -7,8 +7,7 @@ import { readFile, readdir, stat, unlink } from "fs/promises";
 import { CdpConnection } from "./core/CdpConnection";
 import { ResultCache } from "./core/ResultCache";
 import { TokenPool, TokenPoolConfig } from "./core/TokenPool";
-import { AntecedentesScraper, AntecedentesConfig } from "./scrapers/AntecedentesScraper";
-import { CachingScraperProxy } from "./scrapers/CachingScraperProxy";
+import { AntecedentesConfig } from "./scrapers/AntecedentesScraper";
 import { IScraper } from "./scrapers/IScraper";
 
 export interface RpaConfig extends AntecedentesConfig {
@@ -29,27 +28,28 @@ const CORS = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
+/** Piezas ya cableadas que RpaServer usa (las ensambla el RpaBuilder). */
+export interface RpaDeps {
+  cdp: CdpConnection;
+  cache: ResultCache;
+  pool: TokenPool;
+  api: IScraper; // el proxy (caché + dedup) — a él le habla la HTTP
+}
+
 export class RpaServer {
   private readonly cdp: CdpConnection;
   private readonly cache: ResultCache;
-  private readonly scraper: AntecedentesScraper;
   private readonly pool: TokenPool;
-  private readonly api: IScraper; // el proxy (caché + dedup) — a él le habla la HTTP
+  private readonly api: IScraper;
   private http!: http.Server;
 
-  constructor(private readonly cfg: RpaConfig) {
-    // Cableado (composición). El orden resuelve las deps: scraper → pool → setPool.
-    this.cdp = new CdpConnection(cfg.cdpPort, cfg.urlSite, () => this.pool.descartarPoolMuerto());
-    this.cache = new ResultCache(cfg.cacheTtlMs);
-    this.scraper = new AntecedentesScraper(this.cdp, cfg);
-    this.pool = new TokenPool(
-      this.cdp,
-      (page, hm, label) => this.scraper.solveOne(page, hm, label), // Strategy: cómo resolver
-      (page) => this.scraper.rcResuelto(page),                     // validar token
-      { ...cfg.pool, maxWorkers: cfg.maxWorkers },
-    );
-    this.scraper.setPool(this.pool);
-    this.api = new CachingScraperProxy(this.scraper, this.cache, cfg.consultaTimeoutMs); // Proxy
+  // RpaServer NO se auto-cablea: recibe sus dependencias ya construidas (las arma el
+  // RpaBuilder). Así "cómo se construye" vive en un solo lugar; acá solo se USA.
+  constructor(private readonly cfg: RpaConfig, deps: RpaDeps) {
+    this.cdp = deps.cdp;
+    this.cache = deps.cache;
+    this.pool = deps.pool;
+    this.api = deps.api;
   }
 
   // ── Arranque ──────────────────────────────────────────────────────────────
