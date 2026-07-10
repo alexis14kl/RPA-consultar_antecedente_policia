@@ -27,6 +27,14 @@ const MAX_INTENTOS = parseInt(process.env.MAX_INTENTOS ?? "2");
 const POOL_TARGET = parseInt(process.env.POOL_TARGET ?? String(MAX_WORKERS * 3));
 const POOL_SOLVERS = parseInt(process.env.POOL_SOLVERS ?? "2");
 const TOKEN_MAX_AGE_MS = 100_000;
+// Pool ADAPTATIVO a la demanda (anti-quemado de IP): en idle no tiene sentido resolver
+// 6 captchas que vencen sin usarse (~216 solves/hora al pedo que flagean la IP). Si no
+// hubo consulta en DEMAND_WINDOW, el objetivo baja a POOL_IDLE. Al llegar demanda, sube a
+// POOL_TARGET. POOL_IDLE=1 → 1ª consulta instantánea + mínimo desperdicio. 0 = cero solves
+// en idle (pero la 1ª consulta espera un solve). Desactivar: POOL_IDLE = POOL_TARGET.
+const POOL_IDLE = parseInt(process.env.POOL_IDLE ?? "1");
+const DEMAND_WINDOW_MS = parseInt(process.env.DEMAND_WINDOW ?? "120") * 1000;
+let lastDemandAt = 0;
 const SCREENSHOTS_DIR = path.join(SCRIPT_DIR, "screenshots");
 mkdirSync(SCREENSHOTS_DIR, { recursive: true });
 
@@ -418,8 +426,10 @@ async function runPoolManager(sid: number = 0): Promise<void> {
       }
       if (expired > 0) console.log(`[${label}] ${expired} token(s) expirados (pool: ${pool.length})`);
 
-      // Si el pool está lleno, esperar
-      if (pool.length >= POOL_TARGET) {
+      // Objetivo ADAPTATIVO: POOL_TARGET si hubo demanda reciente, si no POOL_IDLE.
+      // Evita quemar la IP resolviendo tokens que nadie va a usar en idle.
+      const target = (Date.now() - lastDemandAt < DEMAND_WINDOW_MS) ? POOL_TARGET : POOL_IDLE;
+      if (pool.length >= target) {
         await esperar(500);
         continue;
       }
@@ -461,6 +471,7 @@ async function runPoolManager(sid: number = 0): Promise<void> {
 const TOKEN_MIN_BUFFER_MS = 3_000;
 
 async function getPoolPage(): Promise<PoolPage> {
+  lastDemandAt = Date.now(); // hay una consulta pidiendo token → el pool sube a POOL_TARGET
   let waited = false;
   while (true) {
     // Limpiar expirados del frente (los más viejos)
