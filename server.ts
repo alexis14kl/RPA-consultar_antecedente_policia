@@ -946,6 +946,17 @@ const server = http.createServer(async (req, res) => {
     });
   }
 
+  // Reset del circuit-breaker. Lo llama el proxy_watchdog DESPUÉS de rotar la IP:
+  // cierra el circuito para que los solvers prueben la IP fresca YA (sin esperar el
+  // cooldown). Idempotente. (Sólo limpia un rate-limiter interno; no toca datos.)
+  if (req.method === "POST" && req.url === "/circuit/reset") {
+    const estaba_abierto = Date.now() < circuitOpenUntil;
+    circuitOpenUntil = 0;
+    circuitFails = 0;
+    if (estaba_abierto) console.log("[CIRCUIT] ✅ reset externo (post-rotación) — solvers reanudan con la IP nueva");
+    return jsonResp(res, 200, { ok: true, estaba_abierto });
+  }
+
   if (req.method === "GET" && req.url?.startsWith("/screenshot/")) {
     const filename = path.basename(req.url.replace("/screenshot/", ""));
     const filePath = path.join(SCREENSHOTS_DIR, filename);

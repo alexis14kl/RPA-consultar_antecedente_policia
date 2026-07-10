@@ -48,6 +48,20 @@ function poolLevel() {
     return m ? parseInt(m[1], 10) : null;
   } catch { return null; }
 }
+// ¿El server abrió el circuit-breaker? (N captchas fallidos seguidos = IP quemada).
+// Es la señal MÁS fuerte de IP mala; rotar acá aprovecha la pausa del server.
+function circuitOpen() {
+  try {
+    const out = execSync(`curl -s --max-time 4 http://127.0.0.1:${HEALTH_PORT}/health`, { encoding: 'utf8' });
+    return /"abierto":true/.test(out);
+  } catch { return false; }
+}
+// Cierra el circuito del server tras rotar → los solvers prueban la IP nueva YA
+// (no esperan el cooldown de la pausa). Idempotente.
+function resetServerCircuit() {
+  try { execSync(`curl -s --max-time 4 -X POST http://127.0.0.1:${HEALTH_PORT}/circuit/reset`, { stdio: 'ignore' }); }
+  catch (e) {}
+}
 // El endpoint HTTP del CDP responde desde un thread aparte: si responde con
 // connectOverCDP colgado, Chrome está CONGELADO (no caído). Si NO responde, está
 // caído/levantando → systemd/launch se encarga, no forzamos restart.
@@ -87,7 +101,7 @@ async function rotate(sw) {
     } catch { b = null; sw = null; return 'no-cdp'; }
   }
 
-  console.log(`[watchdog] iniciado — rota si proxy MUERTO (>=${PROXY_ERR_THRESHOLD} err conexión) o FLAGEADO (>=${BLOCK_THRESHOLD} bloqueos/${WINDOW_SECS}s, pool<${POOL_LOW}); reinicia Chrome si CONGELADO (>=${FROZEN_STREAK} checks); grace ${GRACE_MS}ms`);
+  console.log(`[watchdog] iniciado — rota si proxy MUERTO (>=${PROXY_ERR_THRESHOLD} err), CIRCUITO abierto (server pausó) o FLAGEADO (>=${BLOCK_THRESHOLD} bloqueos/${WINDOW_SECS}s, pool<${POOL_LOW}); reinicia Chrome si CONGELADO (>=${FROZEN_STREAK} checks); grace ${GRACE_MS}ms`);
   let lastRotate = 0;   // cooldown compartido: no rotar proxy y reiniciar Chrome pegados
   let frozenStreak = 0;
   for (;;) {
@@ -122,12 +136,18 @@ async function rotate(sw) {
     const proxyErrs = (journal.match(PROXY_ERR_RE) || []).length;
     const blocks = (journal.match(/Audio bloqueado/g) || []).length;
     const pool = poolLevel();
+    const circuitoAbierto = circuitOpen();
     const low = (pool === null || pool < POOL_LOW);
     const cooldownOk = (Date.now() - lastRotate) > COOLDOWN_MS;
 
-    let reason = null;
+    let reason = null, resetCircuit = false;
     if (proxyErrs >= PROXY_ERR_THRESHOLD && cooldownOk) {
       reason = `PROXY MUERTO (${proxyErrs} err conexión en ${WINDOW_SECS}s)`;
+    } else if (circuitoAbierto && cooldownOk) {
+      // El server pausó por N fallos seguidos (IP quemada). Rotar acá aprovecha la
+      // pausa y luego se cierra el circuito para probar la IP nueva al instante.
+      reason = `CIRCUITO ABIERTO (server pausó por captchas fallidos)`;
+      resetCircuit = true;
     } else if (blocks >= BLOCK_THRESHOLD && low && cooldownOk) {
       reason = `IP FLAGEADA (${blocks} bloqueos en ${WINDOW_SECS}s, pool=${pool})`;
     }
@@ -137,6 +157,10 @@ async function rotate(sw) {
       const newIp = await rotate(sw);
       lastRotate = Date.now();
       console.log('[watchdog] ✅ rotado. nuevo proxy IP: ' + (newIp || '(desconocida)'));
+      if (resetCircuit) {
+        resetServerCircuit(); // cerrar el circuito → los solvers prueban la IP nueva YA
+        console.log('[watchdog] 🔁 circuito reseteado — solvers reanudan con la IP nueva');
+      }
       // Grace: el proxy nuevo tarda ~3-5s en levantarse. Esperar antes de re-evaluar
       // para no declararlo "malo" mientras sube (evita el churn de rotaciones).
       console.log(`[watchdog] ⏳ grace ${GRACE_MS}ms — dejando que el proxy nuevo levante...`);
