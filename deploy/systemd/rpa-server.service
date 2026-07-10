@@ -16,6 +16,8 @@ Environment=HOST=127.0.0.1
 EnvironmentFile=-/root/RPA-consultar_antecedente_policia/.env
 # Esperar a que el CDP esté arriba antes de arrancar (server hace connectOverCDP al inicio).
 ExecStartPre=/bin/sh -c 'for i in $(seq 1 60); do curl -sf http://127.0.0.1:9223/json/version >/dev/null 2>&1 && exit 0; sleep 1; done; echo "CDP no disponible en 60s"; exit 1'
+ExecStartPre=-/bin/sh -c 'cd /root/RPA-consultar_antecedente_policia && PROBE_SAMPLES=8 PROBE_MIN_PASS=1 PROBE_MAX_ROTATE=2 timeout 130 node probar_ip.cjs --rotar'
+TimeoutStartSec=300
 ExecStart=/usr/bin/npx tsx server.ts
 Restart=always
 RestartSec=5
