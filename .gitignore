@@ -5,5 +5,6 @@ captcha_audio.mp3
 screenshots/
 chrome-cdp-profile/
 .venv/
+__pycache__/
 manual_test.ts
 test_token_reuse.ts

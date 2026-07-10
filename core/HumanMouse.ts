@@ -82,18 +82,34 @@ export class HumanMouse {
 
   async moveTo(x: number, y: number): Promise<void> { await this.travel({ x, y }, false); }
 
-  /** Click HUMANO: aproximación con curva + hover + presión real (down→espera→up). */
+  /** Click HUMANO: aproximación con curva + hover (baja el risk score) y luego ACTÚA.
+   *  Puntos crudos → mouse.down/up. Locators → locator.click().
+   *  CRÍTICO: el reCAPTCHA vive en un OOPIF (iframe out-of-process). El mouse.down/up
+   *  por coordenadas top-level NO llega al frame → el checkbox no se actúa. Solo
+   *  locator.click() enruta el evento DENTRO del frame. Por eso, para un Locator, la
+   *  aproximación es humana (curva+hover) pero la actuación va por locator.click(). */
   async click(target: Locator | P): Promise<void> {
     this.busy = true;
     try {
       const pt = await this.pointOf(target);
-      if (!pt) { if (!("x" in target)) await (target as Locator).click({ timeout: 8000 }).catch(() => {}); return; }
-      await this.travel(pt, false);
-      await sleep(rand(this.profile.hoverMs[0], this.profile.hoverMs[1]));
-      try { await this.page.mouse.move(pt.x + rand(-2, 2), pt.y + rand(-2, 2)); } catch {}
-      try { await this.page.mouse.down(); } catch {}
-      await sleep(rand(this.profile.pressMs[0], this.profile.pressMs[1]));
-      try { await this.page.mouse.up(); } catch {}
+      // 1) Aproximación humana: mover el cursor real con curva + hover donde se pueda.
+      if (pt) {
+        await this.travel(pt, false);
+        await sleep(rand(this.profile.hoverMs[0], this.profile.hoverMs[1]));
+        try { await this.page.mouse.move(pt.x + rand(-2, 2), pt.y + rand(-2, 2)); } catch {}
+      }
+      // 2) Actuación real.
+      if ("x" in target) {
+        // Punto crudo: no hay Locator con que actuar → mouse.down/up.
+        try { await this.page.mouse.down(); } catch {}
+        await sleep(rand(this.profile.pressMs[0], this.profile.pressMs[1]));
+        try { await this.page.mouse.up(); } catch {}
+      } else {
+        // Locator: actuar por locator.click() (funciona en OOPIF; el mouse crudo NO).
+        // El hover humano ya ocurrió arriba. `delay` = presión real entre down y up.
+        const delay = Math.round(rand(this.profile.pressMs[0], this.profile.pressMs[1]));
+        await (target as Locator).click({ timeout: 8000, delay }).catch(() => {});
+      }
     } finally { this.busy = false; }
   }
 

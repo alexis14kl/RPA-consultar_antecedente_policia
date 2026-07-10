@@ -66,20 +66,14 @@ export abstract class WebScraper {
     }).catch(() => "");
     if (token.length > 50) return true;
 
-    const rcIframe = page.frames().find(f =>
-      f.url().includes("recaptcha") && f.url().includes("anchor") && !f.url().includes("bframe")
-    );
-    if (rcIframe) {
-      const state = await rcIframe.evaluate(() => {
-        const a = document.getElementById("recaptcha-anchor");
-        return {
-          ariaChecked: a?.getAttribute("aria-checked") ?? "null",
-          hasCheckedClass: !!document.querySelector(".recaptcha-checkbox-checked"),
-        };
-      }).catch(() => ({ ariaChecked: "err", hasCheckedClass: false }));
-      if (state.ariaChecked === "true" || state.hasCheckedClass) return true;
-    }
-    return false;
+    // Fallback: aria-checked del anchor vía frameLocator. NO usar page.frames()+url():
+    // el reCAPTCHA es un OOPIF y sobre connectOverCDP su frame.url() llega VACÍA, así que
+    // buscar el frame por url nunca lo encuentra. frameLocator lo resuelve por el <iframe>.
+    const aria = await page.frameLocator('iframe[title="reCAPTCHA"]')
+      .locator("#recaptcha-anchor")
+      .getAttribute("aria-checked", { timeout: 1500 })
+      .catch(() => null);
+    return aria === "true";
   }
 
   protected async getBframe(page: Page): Promise<Frame | null> {

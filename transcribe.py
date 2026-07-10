@@ -2,6 +2,7 @@ import sys
 import os
 import subprocess
 import urllib.request
+from whisper_paths import WhisperPaths
 
 # ffmpeg: en Mac/Linux vive en el PATH (brew/apt) y no se toca nada. En Windows,
 # si winget no actualizó el PATH de la sesión, exportá FFMPEG_DIR apuntando al
@@ -14,11 +15,12 @@ if FFMPEG_DIR and os.path.isdir(FFMPEG_DIR):
 # C++ nativo, corre rápido en CPU y sin atarse a la versión de Python (el VPS es
 # Python 3.8, donde faster-whisper no instala). Saca los audios "confusos" de
 # reCAPTCHA que Buster no puede. Instalación reproducible: deploy/install_whisper_cpp.sh
-WHISPER_CPP_BIN = os.environ.get("WHISPER_CPP_BIN", "/root/whisper.cpp/build/bin/whisper-cli")
-# IMPORTANTE: el sitio es colombiano → reCAPTCHA sirve el audio en ESPAÑOL. Hay que
-# usar el modelo MULTILINGÜE (ggml-base.bin), NO el .en (inglés): el .en devuelve
-# "(speaking in foreign language)" y nunca resuelve. Idioma configurable con CAPTCHA_LANG.
-WHISPER_CPP_MODEL = os.environ.get("WHISPER_CPP_MODEL", "/root/whisper.cpp/models/ggml-base.bin")
+#
+# Rutas DINÁMICAS (VPS, Mac, PATH…) resueltas por WhisperPaths — sin hardcode de /root.
+# Overrides: WHISPER_CPP_BIN, WHISPER_CPP_MODEL, WHISPER_CPP_HOME. El sitio colombiano
+# sirve el audio en ESPAÑOL → se usa el modelo MULTILINGÜE ggml-base.bin (el .en devuelve
+# "(speaking in foreign language)" y nunca resuelve). Idioma configurable con CAPTCHA_LANG.
+_whisper_paths = WhisperPaths()
 
 # Modelo faster-whisper (fallback si algún día se instala en un Python 3.9+). Multilingüe.
 WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "base")
@@ -51,13 +53,14 @@ def mp3_to_wav(mp3_path: str, wav_path: str, rate: int = None):
 
 def transcribe_whispercpp(mp3_path: str) -> str:
     """Transcripción LOCAL con whisper.cpp (multilingüe, idioma CAPTCHA_LANG). WAV 16 kHz mono."""
-    if not (os.path.exists(WHISPER_CPP_BIN) and os.path.exists(WHISPER_CPP_MODEL)):
-        raise RuntimeError(f"whisper.cpp no instalado ({WHISPER_CPP_BIN})")
+    whisper_bin, whisper_model = _whisper_paths.bin(), _whisper_paths.model()
+    if not (whisper_bin and whisper_model):
+        raise RuntimeError(f"whisper.cpp no instalado ({_whisper_paths.describe()})")
     wav = mp3_path.rsplit(".", 1)[0] + ".16k.wav"
     try:
         mp3_to_wav(mp3_path, wav, rate=16000)
         out = subprocess.run(
-            [WHISPER_CPP_BIN, "-m", WHISPER_CPP_MODEL, "-f", wav, "-nt", "-l", CAPTCHA_LANG],
+            [whisper_bin, "-m", whisper_model, "-f", wav, "-nt", "-l", CAPTCHA_LANG],
             check=True, capture_output=True, text=True, timeout=120,
         )
         # -nt (no timestamps) → stdout es solo el texto (a veces con espacios extra).
