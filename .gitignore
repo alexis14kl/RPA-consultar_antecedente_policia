@@ -8,3 +8,9 @@ chrome-cdp-profile/
 __pycache__/
 manual_test.ts
 test_token_reuse.ts
+# chromium/: versionar solo nuestro launcher (uc_launch.py); ignorar el clon pesado de UC
+# y el perfil tibio persistente.
+chromium/undetected-chromedriver/
+chromium/uc-profile/
+models/
+whisper.cpp/

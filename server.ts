@@ -31,6 +31,9 @@ const cfg: RpaConfig = {
   audioMaxAttempts: parseInt(process.env.AUDIO_MAX_ATTEMPTS ?? "3"),
   captchaTimeoutMs: parseInt(process.env.CAPTCHA_TIMEOUT ?? "35") * 1000,
   captchaTimeoutBlockedMs: parseInt(process.env.CAPTCHA_TIMEOUT_BLOCKED ?? "10") * 1000,
+  // Default OFF: con UC (Chrome real) no hay Buster → ir directo a audio+Whisper. USE_BUSTER=1
+  // lo reactiva (solo útil con un Chromium que cargue la extensión, p. ej. Chrome for Testing).
+  useBuster: process.env.USE_BUSTER === "1",
   // Object Pool
   pool: {
     target: POOL_TARGET,

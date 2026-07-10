@@ -64,15 +64,18 @@ class WhisperPaths:
         env = os.environ.get(self.bin_env)
         if env and os.path.exists(env):
             return env
-        for name in self.BIN_NAMES:
-            found = shutil.which(name)
-            if found:
-                return found
+        # Preferir el whisper EMBEBIDO en el proyecto (<script_dir>/whisper.cpp es el 2º
+        # home candidato, tras $WHISPER_CPP_HOME) → encapsulado, no depende del brew global.
         for home in self._homes():
             for name in self.BIN_NAMES:
                 p = os.path.join(home, "build", "bin", name)
                 if os.path.exists(p):
                     return p
+        # Fallback: en el PATH (brew/apt).
+        for name in self.BIN_NAMES:
+            found = shutil.which(name)
+            if found:
+                return found
         return None
 
     def model(self) -> str | None:

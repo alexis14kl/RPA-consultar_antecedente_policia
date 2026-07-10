@@ -1,5 +1,6 @@
 import sys
 import os
+import re
 import subprocess
 import urllib.request
 from whisper_paths import WhisperPaths
@@ -81,7 +82,7 @@ def transcribe_whisper(path: str) -> str:
 
 
 def transcribe_google(wav_path: str) -> str:
-    """Último fallback: API web gratis de Google (rate-limitea)."""
+    """Google Speech (web, gratis, rate-limitea). Es el motor por defecto de Buster."""
     import speech_recognition as sr
     r = sr.Recognizer()
     with sr.AudioFile(wav_path) as source:
@@ -89,26 +90,78 @@ def transcribe_google(wav_path: str) -> str:
     return r.recognize_google(audio_data, language=GOOGLE_STT_LANG).lower()
 
 
-def transcribe_file(mp3_path: str) -> str:
-    # 1) whisper.cpp local (principal). 2) faster-whisper si existe. 3) Google STT web.
-    for fn in (transcribe_whispercpp, transcribe_whisper):
-        try:
-            text = fn(mp3_path)
-            if text:
-                return text
-        except Exception as e:
-            print(f"{fn.__name__} falló: {e}", file=sys.stderr)
-    wav = mp3_path.replace(".mp3", ".wav")
+def transcribe_google_mp3(mp3_path: str) -> str:
+    """Google STT tomando un mp3 (convierte a wav primero)."""
+    wav = mp3_path.rsplit(".", 1)[0] + ".g.wav"
     try:
         mp3_to_wav(mp3_path, wav)
-        text = transcribe_google(wav)
+        return transcribe_google(wav)
+    finally:
         try:
             os.remove(wav)
         except OSError:
             pass
-        return text
-    except Exception as e1:
-        raise RuntimeError(f"Transcripción falló (whisper.cpp + faster-whisper + Google STT): {e1}")
+
+
+def transcribe_wit(mp3_path: str) -> str:
+    """Wit.ai — el motor CONFIGURABLE de Buster. Requiere WIT_AI_TOKEN (server access
+    token, gratis en wit.ai). Sin token, se saltea."""
+    token = os.environ.get("WIT_AI_TOKEN")
+    if not token:
+        raise RuntimeError("WIT_AI_TOKEN no seteado")
+    wav = mp3_path.rsplit(".", 1)[0] + ".wit.wav"
+    try:
+        mp3_to_wav(mp3_path, wav, rate=16000)  # Wit prefiere PCM 16 kHz mono
+        with open(wav, "rb") as f:
+            body = f.read()
+        req = urllib.request.Request(
+            "https://api.wit.ai/speech?v=20230215",
+            data=body,
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "audio/wav"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=30) as r:
+            raw = r.read().decode("utf-8", "ignore")
+        # Wit stremea varios objetos JSON parciales; el texto final es el último "text".
+        best = ""
+        for m in re.finditer(r'"text"\s*:\s*"((?:[^"\\]|\\.)*)"', raw):
+            best = m.group(1)
+        return best.strip().lower()
+    finally:
+        try:
+            os.remove(wav)
+        except OSError:
+            pass
+
+
+# Motores de STT. "whisper" = whisper.cpp/faster-whisper (local). "google"/"wit" = los
+# motores que usa Buster (Google Speech por defecto; Wit.ai configurable con token).
+ENGINES = {
+    "whisper": [transcribe_whispercpp, transcribe_whisper],
+    "google": [transcribe_google_mp3],
+    "wit": [transcribe_wit],
+}
+
+
+def transcribe_file(mp3_path: str, engine: str = "auto") -> str:
+    """Transcribe con un motor específico (whisper|google|wit) o con la cadena completa
+    si engine='auto'. Devuelve "" si no logra texto — el llamador decide reintentar con
+    otro motor sobre el mismo audio, o pedir un audio nuevo."""
+    if engine == "auto":
+        order = ["whisper", "google"]
+        if os.environ.get("WIT_AI_TOKEN"):
+            order.append("wit")
+    else:
+        order = [engine]
+    for eng in order:
+        for fn in ENGINES.get(eng, []):
+            try:
+                text = fn(mp3_path)
+                if text:
+                    return text
+            except Exception as e:
+                print(f"{eng}/{fn.__name__} falló: {e}", file=sys.stderr)
+    return ""
 
 
 def transcribe(url: str) -> str:
@@ -118,7 +171,9 @@ def transcribe(url: str) -> str:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 3 and sys.argv[1] == "file":
-        print(transcribe_file(sys.argv[2]))
+    # Uso: transcribe.py file <mp3> [engine]   (engine: whisper|google|wit|auto, default auto)
+    if len(sys.argv) >= 3 and sys.argv[1] == "file":
+        engine = sys.argv[3] if len(sys.argv) >= 4 else "auto"
+        print(transcribe_file(sys.argv[2], engine))
     else:
         print(transcribe(sys.argv[1]))

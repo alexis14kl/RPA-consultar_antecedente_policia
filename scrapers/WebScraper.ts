@@ -19,6 +19,7 @@ export interface WebScraperConfig {
   audioMaxAttempts: number;
   captchaTimeoutMs: number;
   captchaTimeoutBlockedMs: number;
+  useBuster: boolean;   // Buster oye español con oídos ingleses y en Chrome real (UC) ni existe.
 }
 
 // Backoff ante bloqueos repetidos de Google (pausa si N bloqueos en <60s).
@@ -82,10 +83,11 @@ export abstract class WebScraper {
     return await h.contentFrame().catch(() => null);
   }
 
-  private async transcribir(mp3Path: string): Promise<string> {
+  // engine: whisper (local) | google | wit (motores de Buster) | auto (cadena completa).
+  private async transcribir(mp3Path: string, engine = "auto"): Promise<string> {
     const { stdout } = await execFileAsync(
       this.cfg.python,
-      [path.join(this.cfg.scriptDir, "transcribe.py"), "file", mp3Path],
+      [path.join(this.cfg.scriptDir, "transcribe.py"), "file", mp3Path, engine],
       { encoding: "utf-8", timeout: 120000 },
     );
     return stdout.trim();
@@ -114,8 +116,11 @@ export abstract class WebScraper {
       }
     }
 
+    // Buster: solo si USE_BUSTER=1 (y con extensión cargada). Con UC (Chrome real) NO hay
+    // Buster: el `.help-button-holder` es el botón NATIVO del reCAPTCHA → clickearlo pierde
+    // ~20s en vano. Por eso, apagado, saltamos directo a audio+Whisper.
     let bframe: Frame | null = null;
-    if (!passed) {
+    if (this.cfg.useBuster && !passed) {
       let hasHolder = false;
       for (let w = 0; w < 15 && !hasHolder; w++) {
         await esperar(1000);
@@ -161,7 +166,12 @@ export abstract class WebScraper {
         });
 
         let capturaVacia = 0;
+        // Fallback de motor por intento (cada intento recarga un audio FRESCO): Whisper
+        // primero; si reCAPTCHA lo rechaza, el próximo audio va a Google STT (el motor de
+        // Buster) y, si hay WIT_AI_TOKEN, a Wit.ai. Así "Whisper falla → Buster".
+        const engines = ["whisper", "google", ...(process.env.WIT_AI_TOKEN ? ["wit"] : [])];
         for (let intento = 0; intento < this.cfg.audioMaxAttempts && !passed; intento++) {
+          const engine = engines[Math.min(intento, engines.length - 1)];
           bframe = await this.getBframe(page);
           if (!bframe) break;
 
@@ -217,17 +227,17 @@ export abstract class WebScraper {
             const mp3Path = path.join(this.cfg.scriptDir, `captcha_audio_${label.replace(/[^a-z0-9]/gi, "_")}.mp3`);
             await writeFile(mp3Path, audioBuffer);
             try {
-              const texto = await this.transcribir(mp3Path);
-              console.log(`[${label}][CAPTCHA] Transcripción (Whisper):`, texto);
+              const texto = await this.transcribir(mp3Path, engine);
+              console.log(`[${label}][CAPTCHA] Transcripción (${engine}):`, texto);
               if (texto.length > 0) {
                 await bframe.locator("#audio-response").fill(texto);
                 await bframe.locator("#recaptcha-verify-button").click();
                 await esperar(3000);
                 passed = await this.rcResuelto(page);
-                if (passed) { console.log(`[${label}][CAPTCHA] Whisper resolvió el audio.`); break; }
-                console.log(`[${label}][CAPTCHA] Audio incorrecto — pido uno nuevo y reintento.`);
+                if (passed) { console.log(`[${label}][CAPTCHA] ${engine} resolvió el audio.`); break; }
+                console.log(`[${label}][CAPTCHA] ${engine} incorrecto — próximo audio con otro motor.`);
               }
-            } catch (e) { console.log(`[${label}][CAPTCHA] Error transcripción:`, (e as Error).message); }
+            } catch (e) { console.log(`[${label}][CAPTCHA] Error transcripción (${engine}):`, (e as Error).message); }
           } else {
             capturaVacia++;
             console.log(`[${label}][CAPTCHA] Audio no capturado (${capturaVacia}).`);
