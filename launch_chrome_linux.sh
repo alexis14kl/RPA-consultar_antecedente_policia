@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-CDP_PORT=9223
+CDP_PORT="${CDP_PORT:-9223}"   # override por env para una 2ª instancia (balanceo de cargas)
 URL="https://antecedentes.policia.gov.co:7005/WebJudicial/index.xhtml"
 CHROME="${CHROME_BIN:-/usr/lib/chromium/chromium}"   # CHROME_BIN permite usar Chrome for Testing (docker); default = chromium de Debian (nativo)
 # Fallback: si ese binario no existe, usar el Chrome de Playwright (chrome-linux*/chrome).
@@ -8,8 +8,8 @@ if [ ! -x "$CHROME" ]; then
   CHROME="$(ls -d /root/.cache/ms-playwright/chromium-*/chrome-linux*/chrome 2>/dev/null | sort -V | tail -1)"
 fi
 DIR="$(cd "$(dirname "$0")" && pwd)"
-USER_DATA="$DIR/chrome-cdp-profile"
-XDISPLAY=:99
+USER_DATA="${USER_DATA:-$DIR/chrome-cdp-profile}"   # perfil propio por instancia (balanceo)
+XDISPLAY="${XDISPLAY:-:99}"
 
 # Extensiones que se auto-inyectan: Buster (resuelve reCAPTCHA) + hide-my-ip
 # (enruta la salida por un proxy no-datacenter, evita el bloqueo de Google).
