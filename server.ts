@@ -642,10 +642,11 @@ async function ejecutarConsulta(
       await hmC.type(page.locator("#cedulaInput"), cedula);
       await hmC.click(page.getByRole("button", { name: /consultar/i }));
       hmC.stop();
-      await Promise.race([
-        page.waitForLoadState("networkidle", { timeout: 20000 }),
-        page.locator("#form\\:mensajeCiudadano").waitFor({ state: "visible", timeout: 20000 }),
-      ]).catch(() => {});
+      // Esperar el CONTENEDOR del resultado ANTES de parsear (no la carrera con
+      // networkidle, que puede ganar antes de que el JSF renderice el resultado → parse
+      // prematuro = NO DETERMINADO aunque el resultado sí cargue). El screenshot ya lo esperaba.
+      await page.locator("#form\\:mensajeCiudadano").waitFor({ state: "visible", timeout: 20000 }).catch(() => {});
+      await page.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => {});
 
       url = page.url();
       ({ datos, resultado_raw } = await parsearPagina(page, cedula));
