@@ -35,6 +35,15 @@ const TOKEN_MAX_AGE_MS = 100_000;
 const POOL_IDLE = parseInt(process.env.POOL_IDLE ?? "1");
 const DEMAND_WINDOW_MS = parseInt(process.env.DEMAND_WINDOW ?? "120") * 1000;
 let lastDemandAt = 0;
+// Circuit-breaker: si el captcha falla CIRCUIT_FAILS veces SEGUIDAS (típico: IP quemada,
+// "Audio bloqueado por Google"), abrir el circuito y PAUSAR los solvers CIRCUIT_COOLDOWN
+// para no martillar a Google y quemar más la IP. Capa secundaria: el proxy_watchdog rota
+// la IP agresivo (threshold bajo); el breaker frena recién si ni rotando mejora. Half-open
+// implícito: al vencer el cooldown los solvers reintentan; si sigue fallando, reabre.
+const CIRCUIT_FAILS = parseInt(process.env.CIRCUIT_FAILS ?? "6");
+const CIRCUIT_COOLDOWN_MS = parseInt(process.env.CIRCUIT_COOLDOWN ?? "30") * 1000;
+let circuitFails = 0;      // fallos de captcha seguidos (se resetea con 1 éxito)
+let circuitOpenUntil = 0;  // si Date.now() < esto, los solvers están en pausa
 // Disponibilidad: NO atar la apertura del puerto al pool. El server escucha SIEMPRE
 // (tras un warmup acotado para arrancar tibio); si no hay token, una consulta espera
 // POOL_WAIT_MS y si no llega devuelve 503 (no cuelga 120s, no crash-loop de systemd).
@@ -414,6 +423,19 @@ async function irAFormulario(page: Page, label: string): Promise<void> {
   console.log(`[${label}][NAV] Formulario listo.`);
 }
 
+// Contabiliza un intento de token fallido para el circuit-breaker: se llama tanto
+// en !ok (captcha rechazado, típico IP quemada) como en la excepción del intento
+// (proxy muerto, nav timeout). NO cuenta el catch EXTERNO (cdp.newPage durante una
+// reconexión de chrome) → un restart de chrome no abre el circuito de más.
+function registrarFalloCaptcha(label: string): void {
+  circuitFails++;
+  if (circuitFails >= CIRCUIT_FAILS && Date.now() >= circuitOpenUntil) {
+    circuitOpenUntil = Date.now() + CIRCUIT_COOLDOWN_MS;
+    console.warn(`[CIRCUIT] ⛔ abierto (${label}) — ${circuitFails} captchas fallidos seguidos; pauso solvers ${CIRCUIT_COOLDOWN_MS / 1000}s (no quemar IP). Reabre si sigue fallando.`);
+    circuitFails = 0; // medir de nuevo tras reanudar (half-open implícito)
+  }
+}
+
 // ── Token Pool Manager — loop en background ────────────────────────────────
 async function runPoolManager(sid: number = 0): Promise<void> {
   poolManagerRunning = true;
@@ -434,6 +456,13 @@ async function runPoolManager(sid: number = 0): Promise<void> {
       }
       if (expired > 0) console.log(`[${label}] ${expired} token(s) expirados (pool: ${pool.length})`);
 
+      // Circuit-breaker: si está abierto (muchos fallos seguidos), no atacar el captcha.
+      // Poll corto para reanudar apenas venza el cooldown (no dormir el bloque entero).
+      if (Date.now() < circuitOpenUntil) {
+        await esperar(2000);
+        continue;
+      }
+
       // Objetivo ADAPTATIVO: POOL_TARGET si hubo demanda reciente, si no POOL_IDLE.
       // Evita quemar la IP resolviendo tokens que nadie va a usar en idle.
       const target = (Date.now() - lastDemandAt < DEMAND_WINDOW_MS) ? POOL_TARGET : POOL_IDLE;
@@ -452,17 +481,20 @@ async function runPoolManager(sid: number = 0): Promise<void> {
         const ok = await resolverCaptcha(page, label);
         stopMouse();
         if (ok) {
+          circuitFails = 0; // éxito → cerrar el circuito
           const solvedAt = Date.now();
           pool.push({ page, solvedAt, expiresAt: solvedAt + TOKEN_MAX_AGE_MS - TOKEN_MIN_BUFFER_MS });
           console.log(`[${label}] Token listo ✓ (pool: ${pool.length}/${POOL_TARGET})`);
         } else {
           await closePageSafe(page);
+          registrarFalloCaptcha(label);
           console.log(`[${label}] CAPTCHA no resuelto — reintentando en 3s`);
           await esperar(3000);
         }
       } catch (e) {
         stopMouse();
         await closePageSafe(page);
+        registrarFalloCaptcha(label); // intento fallido (proxy muerto, nav timeout, etc.)
         console.log(`[${label}] Error: ${(e as Error).message} — reintentando en 3s`);
         await esperar(3000);
       } finally {
@@ -905,6 +937,11 @@ const server = http.createServer(async (req, res) => {
       activas: semaphore.active,
       esperando: semaphore.waiting,
       max_workers: MAX_WORKERS,
+      circuito: {
+        abierto: Date.now() < circuitOpenUntil,
+        fails: circuitFails,
+        reabre_en_s: Date.now() < circuitOpenUntil ? Math.ceil((circuitOpenUntil - Date.now()) / 1000) : 0,
+      },
       cache: { entradas: resultCache.size, hits: cacheHits, misses: cacheMisses, ttl_min: CACHE_TTL_MS / 60000 },
     });
   }
