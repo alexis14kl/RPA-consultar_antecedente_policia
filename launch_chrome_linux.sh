@@ -42,7 +42,9 @@ echo "[4] Lanzando Chrome ($CHROME) con Buster + hide-my-ip..."
 "$CHROME" \
   --no-sandbox \
   --disable-dev-shm-usage \
-  --disable-gpu \
+  --use-gl=angle \
+  --use-angle=swiftshader \
+  --enable-unsafe-swiftshader \
   --remote-debugging-address=127.0.0.1 \
   --remote-debugging-port=$CDP_PORT \
   --remote-allow-origins='*' \
