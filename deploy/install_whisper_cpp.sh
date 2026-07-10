@@ -11,7 +11,7 @@ set -euo pipefail
 WHISPER_DIR="${WHISPER_DIR:-/root/whisper.cpp}"
 # Commit PINEADO (el que dejó el servicio estable). Cambiar solo a propósito.
 WHISPER_COMMIT="${WHISPER_COMMIT:-6fc7c33b4c3a2cec83e4b65abd5e96a890480375}"
-WHISPER_MODEL_NAME="${WHISPER_MODEL_NAME:-base.en}"   # base.en = buen balance precisión/velocidad
+WHISPER_MODEL_NAME="${WHISPER_MODEL_NAME:-base}"   # base MULTILINGÜE: el audio del reCAPTCHA es ESPAÑOL (sitio colombiano); base.en no lo saca
 MODEL_FILE="models/ggml-${WHISPER_MODEL_NAME}.bin"
 
 echo "[whisper.cpp] deps de sistema (git, build-essential, cmake, ffmpeg)..."

@@ -15,10 +15,17 @@ if FFMPEG_DIR and os.path.isdir(FFMPEG_DIR):
 # Python 3.8, donde faster-whisper no instala). Saca los audios "confusos" de
 # reCAPTCHA que Buster no puede. Instalación reproducible: deploy/install_whisper_cpp.sh
 WHISPER_CPP_BIN = os.environ.get("WHISPER_CPP_BIN", "/root/whisper.cpp/build/bin/whisper-cli")
-WHISPER_CPP_MODEL = os.environ.get("WHISPER_CPP_MODEL", "/root/whisper.cpp/models/ggml-base.en.bin")
+# IMPORTANTE: el sitio es colombiano → reCAPTCHA sirve el audio en ESPAÑOL. Hay que
+# usar el modelo MULTILINGÜE (ggml-base.bin), NO el .en (inglés): el .en devuelve
+# "(speaking in foreign language)" y nunca resuelve. Idioma configurable con CAPTCHA_LANG.
+WHISPER_CPP_MODEL = os.environ.get("WHISPER_CPP_MODEL", "/root/whisper.cpp/models/ggml-base.bin")
 
-# Modelo faster-whisper (fallback si algún día se instala en un Python 3.9+).
-WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "base.en")
+# Modelo faster-whisper (fallback si algún día se instala en un Python 3.9+). Multilingüe.
+WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "base")
+
+# Idioma del audio del reCAPTCHA. El sitio de la policía (colombiano) lo sirve en español.
+CAPTCHA_LANG = os.environ.get("CAPTCHA_LANG", "es")
+GOOGLE_STT_LANG = os.environ.get("GOOGLE_STT_LANG", "es-CO")
 
 
 def download_audio(url: str, dest: str):
@@ -43,14 +50,14 @@ def mp3_to_wav(mp3_path: str, wav_path: str, rate: int = None):
 
 
 def transcribe_whispercpp(mp3_path: str) -> str:
-    """Transcripción LOCAL con whisper.cpp (base.en). Requiere WAV 16 kHz mono."""
+    """Transcripción LOCAL con whisper.cpp (multilingüe, idioma CAPTCHA_LANG). WAV 16 kHz mono."""
     if not (os.path.exists(WHISPER_CPP_BIN) and os.path.exists(WHISPER_CPP_MODEL)):
         raise RuntimeError(f"whisper.cpp no instalado ({WHISPER_CPP_BIN})")
     wav = mp3_path.rsplit(".", 1)[0] + ".16k.wav"
     try:
         mp3_to_wav(mp3_path, wav, rate=16000)
         out = subprocess.run(
-            [WHISPER_CPP_BIN, "-m", WHISPER_CPP_MODEL, "-f", wav, "-nt", "-l", "en"],
+            [WHISPER_CPP_BIN, "-m", WHISPER_CPP_MODEL, "-f", wav, "-nt", "-l", CAPTCHA_LANG],
             check=True, capture_output=True, text=True, timeout=120,
         )
         # -nt (no timestamps) → stdout es solo el texto (a veces con espacios extra).
@@ -66,7 +73,7 @@ def transcribe_whisper(path: str) -> str:
     """Fallback: faster-whisper (CPU, int8) — solo si está instalado (Python 3.9+)."""
     from faster_whisper import WhisperModel
     model = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8")
-    segments, _ = model.transcribe(path, language="en", beam_size=1)
+    segments, _ = model.transcribe(path, language=CAPTCHA_LANG, beam_size=1)
     return " ".join(seg.text for seg in segments).strip().lower()
 
 
@@ -76,7 +83,7 @@ def transcribe_google(wav_path: str) -> str:
     r = sr.Recognizer()
     with sr.AudioFile(wav_path) as source:
         audio_data = r.record(source)
-    return r.recognize_google(audio_data, language="en-US").lower()
+    return r.recognize_google(audio_data, language=GOOGLE_STT_LANG).lower()
 
 
 def transcribe_file(mp3_path: str) -> str:
