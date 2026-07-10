@@ -1,7 +1,9 @@
 [Unit]
 Description=RPA — server.ts (API antecedentes) en :4321
 After=rpa-chrome.service
-Requires=rpa-chrome.service
+# Wants (no Requires): si rpa-chrome reinicia/cae, NO arrastra al server (sin cascade).
+# El server reconecta al CDP solo (browser.on disconnected -> reconnectLoop en server.ts).
+Wants=rpa-chrome.service
 
 [Service]
 Type=simple

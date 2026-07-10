@@ -46,6 +46,7 @@ mkdirSync(SCREENSHOTS_DIR, { recursive: true });
 // ── Browser global ─────────────────────────────────────────────────────────
 let browser: Browser | null = null;
 let context: BrowserContext | null = null;
+let reconnecting = false; // guard: un solo loop de reconexión al CDP a la vez
 
 // ── Tracker de consultas activas (sin bloqueo — pool es el limitador) ──────
 class Semaphore {
@@ -731,13 +732,11 @@ function encolarLote(items: { cedula: string; tipo: string }[]): Promise<any>[] 
   return items.map(item => encolarConsulta(item.cedula, item.tipo));
 }
 
-// ── Inicializar browser ────────────────────────────────────────────────────
-async function initBrowser(): Promise<void> {
-  if (!(await cdpActivo(CDP_PORT))) {
-    throw new Error(`CDP no activo en puerto ${CDP_PORT}.`);
-  }
-  await asegurarPagina(CDP_PORT);
-  console.log("CDP activo — conectando browser...");
+// ── Conexión al CDP (inicial y reconexión) ─────────────────────────────────
+// Conecta al Chrome vía CDP, toma el context y aplica el init-script + el handler
+// que cierra tabs espurias. Registra "disconnected" para que una caída de Chrome
+// dispare la reconexión en vez de dejar el server vivo-pero-inútil (context muerto).
+async function connectCDP(): Promise<void> {
   browser = await chromium.connectOverCDP(`http://127.0.0.1:${CDP_PORT}`);
   const ctxList = browser.contexts();
   context = ctxList.length > 0 ? ctxList[0] : await browser.newContext();
@@ -759,6 +758,52 @@ async function initBrowser(): Promise<void> {
       await browserCdp.send("Target.closeTarget", { targetId: t.targetId }).catch(() => {});
     }
   });
+
+  // Desacople runtime: si rpa-chrome reinicia/cae, NO morir → reconectar al CDP.
+  browser.on("disconnected", onDisconnect);
+}
+
+// Chrome se desconectó (crash, `systemctl restart rpa-chrome`, CDP caído). Los
+// tokens del pool son páginas de un Chrome que ya no existe → inservibles: se
+// descartan y arranca el loop de reconexión (el guard evita loops paralelos).
+function onDisconnect(): void {
+  if (reconnecting) return;
+  reconnecting = true;
+  console.warn("[CDP] Browser desconectado — descarto pool muerto y reconecto...");
+  pool.length = 0;
+  inFlight.clear();
+  reconnectLoop();
+}
+
+// Reintenta connectOverCDP hasta que el CDP vuelva. Los solvers (runPoolManager)
+// siguen vivos en su loop; al reasignarse `context` global reanudan solos.
+async function reconnectLoop(): Promise<void> {
+  let intento = 0;
+  while (true) {
+    intento++;
+    try {
+      if (await cdpActivo(CDP_PORT)) {
+        await asegurarPagina(CDP_PORT);
+        await connectCDP();
+        reconnecting = false;
+        console.log(`[CDP] Reconectado ✓ (intento ${intento}) — los solvers reanudan.`);
+        return;
+      }
+    } catch (e) {
+      console.warn(`[CDP] Reconexión intento ${intento} falló: ${(e as Error).message}`);
+    }
+    await esperar(3000);
+  }
+}
+
+// ── Inicializar browser ────────────────────────────────────────────────────
+async function initBrowser(): Promise<void> {
+  if (!(await cdpActivo(CDP_PORT))) {
+    throw new Error(`CDP no activo en puerto ${CDP_PORT}.`);
+  }
+  await asegurarPagina(CDP_PORT);
+  console.log("CDP activo — conectando browser...");
+  await connectCDP();
 
   semaphore = new Semaphore();
 
@@ -968,6 +1013,7 @@ const server = http.createServer(async (req, res) => {
   // Graceful shutdown
   const shutdown = async (signal: string) => {
     console.log(`\n[${signal}] Cerrando...`);
+    reconnecting = true; // cierre a propósito → que "disconnected" NO dispare reconexión
     server.close();
     await browser?.close().catch(() => {});
     process.exit(0);
